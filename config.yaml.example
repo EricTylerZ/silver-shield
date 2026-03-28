@@ -1,0 +1,137 @@
+# Silver Shield Configuration
+# Copy this file to config.yaml and customize for your case.
+# NEVER commit config.yaml -- it contains local paths.
+
+case:
+  name: "Your Case Name"
+  number: "2024XX00000"
+  jurisdiction: "Colorado"
+  court: "District Court"
+
+# Where your bank statement PDFs live (absolute path)
+data_dir: /path/to/your/organized/bank/statements
+
+# Where Silver Shield writes output (ledger, reports, JSON)
+output_dir: /path/to/your/output
+
+# Ledger output filename
+ledger_file: Financial Ledger.xlsx
+
+# Deficiency tracker output
+tracker_file: Deficiency_Response_Tracker.html
+
+# Entity definitions -- map accounts to legal entities
+entities:
+  - name: "Your Name"
+    type: personal
+    accounts:
+      - id: "x1234"
+        institution: "Bank Name"
+        type: "checking"
+        label: "Primary Checking"
+        parser: "centier"        # centier | usaa | generic | ocr
+        statement_dir: "Bank x1234"  # subfolder under data_dir
+      - id: "x5678"
+        institution: "USAA"
+        type: "checking"
+        label: "USAA Checking"
+        parser: "usaa"
+        statement_dir: "USAA Checking x5678"
+
+  - name: "Your Business LLC"
+    type: business
+    accounts:
+      - id: "x9012"
+        institution: "Bank Name"
+        type: "checking"
+        label: "Operating"
+        parser: "centier"
+        statement_dir: "Bank x9012"
+      - id: "x3456"
+        institution: "Bank Name"
+        type: "checking"
+        label: "Income"
+        parser: "centier"
+        statement_dir: "Bank x3456"
+
+# Deposit categorization rules
+# Each rule has a pattern (matched against deposit description, case-insensitive)
+# and a category. Rules are evaluated in order; first match wins.
+categorization_rules:
+  - pattern: "COINBASE|KRAKEN|CRYPTO"
+    category: "CRYPTO_EXCHANGE"
+  - pattern: "DIRECT DEP|DIR DEP|PAYROLL|GUSTO|SALARY|WAGES"
+    category: "PAYROLL/INCOME"
+  - pattern: "STRIPE"
+    category: "BUSINESS_INCOME"
+  - pattern: "XFER|TRANSFER|TRNSFR|WIRE|EXT-INTRNT"
+    category: "TRANSFER"
+  - pattern: "ZELLE"
+    category: "ZELLE"
+  - pattern: "INTEREST|IOD"
+    category: "INTEREST"
+  - pattern: "RTN|RETURN|REFUND|REVERSAL"
+    category: "RETURN/REFUND"
+  - pattern: "SCHWAB|MONEYLINK"
+    category: "BROKERAGE_TRANSFER"
+  - pattern: "VENMO|CASHAPP|CASH APP|PAYPAL"
+    category: "PEER_PAYMENT"
+  # Generic "DEPOSIT" with no qualifier -- likely check deposit (parent loan, etc.)
+  - pattern: "^DEPOSIT$|^DEPOSIT\\s*$|^DEPOSIT@"
+    category: "GENERIC_DEPOSIT"
+    flags: "possible_parent_debt"
+
+# Parent debt identification
+# These categories are flagged as potential parent/family loans
+parent_debt_categories:
+  - "GENERIC_DEPOSIT"
+  - "CASH_DEPOSIT"
+  - "CHECK_DEPOSIT"
+  - "MOBILE_DEPOSIT"
+
+# Deficiency letter items to track
+deficiency_items:
+  - id: 1
+    name: "Sworn Financial Statement"
+    description: "Complete JDF 1111 or equivalent"
+  - id: 2
+    name: "Income Tax Returns"
+    description: "Federal and state returns for last 3 years"
+  - id: 3
+    name: "Personal Financial Statements"
+    description: "Assets, liabilities, net worth"
+  - id: 4
+    name: "Business Financial Statements"
+    description: "P&L, balance sheet for all business entities"
+  - id: 5
+    name: "Business Tax Returns"
+    description: "Corporate/partnership returns for all entities"
+  - id: 6
+    name: "Investment Statements"
+    description: "Brokerage, retirement, crypto accounts"
+  - id: 7
+    name: "Retirement Accounts"
+    description: "IRA, 401k, pension statements"
+  - id: 8
+    name: "Income Verification"
+    description: "Pay stubs, 1099s, K-1s"
+  - id: 9
+    name: "Bank Account Statements"
+    description: "All accounts for discovery period"
+  - id: 10
+    name: "Insurance Policies"
+    description: "Life, health, auto, property"
+  - id: 11
+    name: "Interrogatory Answers"
+    description: "Responses to written interrogatories"
+
+# Excel formatting conventions (financial modeling standard)
+excel_formatting:
+  input_color: "0000FF"       # Blue -- hardcoded inputs
+  formula_color: "000000"     # Black -- formulas and calculations
+  crossref_color: "008000"    # Green -- cross-sheet references
+  external_color: "FF0000"    # Red -- external file links
+  attention_bg: "FFFF00"      # Yellow background -- needs attention
+  header_bg: "333333"         # Dark header background
+  header_fg: "FFFFFF"         # White header text
+  currency_format: '$#,##0.00;($#,##0.00);"-"'

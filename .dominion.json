@@ -1,0 +1,24 @@
+{
+  "creature_type": "Livestock",
+  "label": "Silver Shield \u2014 Financial Bookkeeping Armor",
+  "icon": "\ud83d\udee1\ufe0f",
+  "stewardship_score": 8,
+  "sabbath": {
+    "enforced": true,
+    "notes": "No automated processing on Sundays. Manual review only."
+  },
+  "wild_things": [
+    "pdfplumber (PDF text extraction)",
+    "tesseract (OCR for image-based statements)",
+    "openpyxl (Excel ledger generation)",
+    "pdftotext (Centier columnar format parsing)"
+  ],
+  "dominion_notes": "Silver Shield is the financial steward of the ecosystem. It handles bookkeeping, bank statement extraction, transaction categorization, entity separation, parent debt tracing, and discovery compliance for family law proceedings. It produces auditable Excel ledgers with color-coded formulas (blue=inputs, black=formulas, green=cross-sheet links). Subsidiarity applies: automate extraction and categorization, but human reviews all classifications before they become legal assertions. No personal financial data is committed to the repository\u2014all paths are config-driven.",
+  "ecosystem_dependencies": {
+    "stewardship-exchange": "CI 42 compliance framework for audit trail integrity",
+    "continuity-binder": "Session handoff pattern for multi-session financial work",
+    "chief-of-training": "Quest model for onboarding new users to the ledger system"
+  },
+  "compliance_series": "CI 42",
+  "data_policy": "config-driven paths, no PII in repository, .gitignore enforced"
+}

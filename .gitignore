@@ -1,0 +1,40 @@
+# Personal data -- NEVER commit
+config.yaml
+*.xlsx
+*.pdf
+*.json
+!.dominion.json
+!config.yaml.example
+!templates/*.xlsx
+!package.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# Environment
+.env
+.env.local
+
+# Output
+output/
+exports/
