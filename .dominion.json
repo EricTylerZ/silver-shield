@@ -11,14 +11,40 @@
     "pdfplumber (PDF text extraction)",
     "tesseract (OCR for image-based statements)",
     "openpyxl (Excel ledger generation)",
-    "pdftotext (Centier columnar format parsing)"
+    "pdftotext (Centier columnar format parsing)",
+    "flask (dashboard API, port 5003)",
+    "angular (frontend, port 4200)"
   ],
-  "dominion_notes": "Silver Shield is the financial steward of the ecosystem. It handles bookkeeping, bank statement extraction, transaction categorization, entity separation, parent debt tracing, and discovery compliance for family law proceedings. It produces auditable Excel ledgers with color-coded formulas (blue=inputs, black=formulas, green=cross-sheet links). Subsidiarity applies: automate extraction and categorization, but human reviews all classifications before they become legal assertions. No personal financial data is committed to the repository\u2014all paths are config-driven.",
+  "dominion_notes": "Silver Shield is the financial steward of the ecosystem. Fractal accounting engine: every entity (person, business, project, agent) gets its own books with double-entry ledger, multi-currency support (USD, XAG, MERIT, BTC, ETH), and append-only integrity. Resource tracker provides the merit ledger bridge -- other projects query balances and record spending through Silver Shield, not standalone JSON wallets. Bank statement pipeline (extraction, categorization, ledger building) is one tool within. Everything offline: Angular frontend + Flask backend on localhost only.",
+  "capabilities": {
+    "core_engine": "Four primitives (Entity, Account, Currency, Entry), append-only double-entry ledger, entity hierarchy with human authority constraint",
+    "resource_tracking": "Per-entity budgets, mint/allocate/spend, balance queries. The ecosystem merit ledger.",
+    "merit_bridge": "EZ Merit costs enforced per CI 40-703.7 (22/email, 22/smtp, 2/announcement, 10/confirmation). Balances derived from ledger, not separate wallets.",
+    "bank_pipeline": "PDF extraction (Centier, USAA, OCR), deposit categorization, Excel ledger builder",
+    "compliance": "CI 42 series (coverage, accuracy, formulas, sources, PII guard)"
+  },
   "ecosystem_dependencies": {
-    "stewardship-exchange": "CI 42 compliance framework for audit trail integrity",
-    "continuity-binder": "Session handoff pattern for multi-session financial work",
-    "chief-of-training": "Quest model for onboarding new users to the ledger system"
+    "stewardship-exchange": "CI 42 compliance framework, oikonomia policy",
+    "community-shield": "Ecosystem registry, project dashboard at :4222",
+    "ez-merit-notify": "Merit spending interface -- reads balances from Silver Shield ledger",
+    "auto-agent": "Resource consumption recording, budget checks before proposals",
+    "compliance-inspector": "Subordinate policy tracking, CI 90 governance"
   },
   "compliance_series": "CI 42",
-  "data_policy": "config-driven paths, no PII in repository, .gitignore enforced"
+  "subordinate_policy": {
+    "series": "CI 42",
+    "checks": [
+      "CI 42-001: Account coverage -- every configured account has extracted data",
+      "CI 42-003: Total accuracy -- deposit/withdrawal totals match statements",
+      "CI 42-004: Formula integrity -- Excel formulas recalc with 0 errors",
+      "CI 42-005: Parent debt sources -- all generic deposits flagged for review",
+      "CI 42-100: No PII -- repository contains no personal financial data"
+    ],
+    "resource_policy": {
+      "merit_authority": "Only head of household mints. CI 40-703.2.",
+      "spending_enforcement": "MeritBridge.can_afford() checked before any spend.",
+      "ledger_integrity": "All merit balances derived from double-entry ledger. No standalone wallets."
+    }
+  },
+  "data_policy": "Config-driven paths, no PII in repository, .gitignore enforced. Claude Code PreToolUse hook blocks reading config.yaml, data/, output/, PDFs, Excel."
 }

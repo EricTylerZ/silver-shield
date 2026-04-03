@@ -1,0 +1,42 @@
+:root {
+  --silver: #c0c0c0; --silver-dim: #8a8a9a; --silver-bright: #e8e8f0;
+  --bg: #0f1219; --card: #181d28; --card-hover: #1e2535; --border: #2a3040;
+  --text: #e0e4ec; --muted: #7a8498;
+  --green: #22c55e; --yellow: #eab308; --red: #ef4444; --blue: #3b82f6;
+  --teal: #00918B;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text);
+       min-height: 100vh; line-height: 1.5; }
+
+.card { background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+        padding: 1.25rem; margin-bottom: 1rem; }
+.card h2 { font-size: .9rem; color: var(--silver); border-bottom: 1px solid var(--border);
+           padding-bottom: .5rem; margin-bottom: .75rem; display: flex;
+           align-items: center; justify-content: space-between; }
+.card h2 .subtitle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+
+.stat-card { background: var(--card); border-radius: 8px; border: 1px solid var(--border);
+             padding: 1rem; text-align: center; }
+.stat-card .num { font-size: 2rem; font-weight: 700; }
+.stat-card .label { font-size: .7rem; color: var(--muted); text-transform: uppercase;
+                    letter-spacing: .06em; margin-top: .2rem; }
+
+.badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px;
+         font-weight: 600; font-size: .72rem; }
+.badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+.badge-yellow { background: rgba(234,179,8,.15); color: var(--yellow); }
+.badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,.15); color: var(--blue); }
+.badge-silver { background: rgba(192,192,192,.12); color: var(--silver); }
+
+.mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: .78rem; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+.grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; }
+@media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.loading { color: var(--muted); font-style: italic; font-size: .82rem; padding: 1rem 0;
+           text-align: center; }

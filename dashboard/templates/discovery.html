@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Silver Shield -- Discovery</title>
+<style>
+  :root {
+    --silver: #c0c0c0; --silver-dim: #8a8a9a; --silver-bright: #e8e8f0;
+    --bg: #0f1219; --card: #181d28; --card-hover: #1e2535; --border: #2a3040;
+    --text: #e0e4ec; --muted: #7a8498;
+    --green: #22c55e; --yellow: #eab308; --red: #ef4444; --blue: #3b82f6;
+    --teal: #00918B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text);
+         min-height: 100vh; }
+
+  /* Nav */
+  nav { background: linear-gradient(135deg, #12151f 0%, #1a1f2e 100%);
+        padding: .8rem 1.5rem; display: flex; align-items: center; gap: 1.2rem;
+        border-bottom: 2px solid var(--silver-dim); }
+  nav .brand { font-size: 1.15rem; font-weight: 600; color: #fff; text-decoration: none; }
+  nav .brand span { color: var(--silver); }
+  nav a.nav-link { color: var(--muted); text-decoration: none; font-size: .82rem;
+                   padding: .25rem .5rem; border-radius: 4px; transition: all .2s; }
+  nav a.nav-link:hover, nav a.nav-link.active { color: #fff; background: rgba(255,255,255,.06); }
+  nav .spacer { flex: 1; }
+  .port-badge { font-size: .7rem; color: var(--silver-dim); padding: .2rem .5rem;
+                border: 1px solid var(--border); border-radius: 12px; font-family: monospace; }
+
+  /* Layout */
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.25rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+  @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card { background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+          padding: 1.25rem; margin-bottom: 1rem; }
+  .card h2 { font-size: .9rem; color: var(--silver); border-bottom: 1px solid var(--border);
+             padding-bottom: .5rem; margin-bottom: .75rem; display: flex;
+             align-items: center; justify-content: space-between; }
+  .card h2 .subtitle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+
+  /* Summary cards */
+  .stat-card { background: var(--card); border-radius: 8px; border: 1px solid var(--border);
+               padding: 1rem; text-align: center; }
+  .stat-card .num { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { font-size: .7rem; color: var(--muted); text-transform: uppercase;
+                      letter-spacing: .06em; margin-top: .2rem; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px;
+           font-weight: 600; font-size: .72rem; }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+  .badge-yellow { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+  .badge-blue { background: rgba(59,130,246,.15); color: var(--blue); }
+  .badge-silver { background: rgba(192,192,192,.12); color: var(--silver); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th { text-align: left; color: var(--muted); font-size: .72rem; text-transform: uppercase;
+       letter-spacing: .04em; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+  td { padding: .5rem .6rem; border-bottom: 1px solid rgba(255,255,255,.04); }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: .78rem; }
+  .currency { text-align: right; font-family: monospace; }
+
+  /* Buttons */
+  button { background: var(--silver-dim); color: #fff; border: none; padding: .4rem .8rem;
+           border-radius: 6px; cursor: pointer; font-size: .78rem; font-weight: 500;
+           transition: opacity .2s; }
+  button:hover { opacity: .85; }
+  button:disabled { background: #2a2a3c; color: #555; cursor: not-allowed; }
+  button.primary { background: var(--silver); color: #111; }
+  button.small { padding: .25rem .5rem; font-size: .72rem; }
+
+  /* Status dots */
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  .dot-yellow { background: var(--yellow); }
+  .dot-gray { background: #555; }
+
+  /* Compliance */
+  .check-row { display: flex; align-items: center; gap: .6rem; padding: .5rem 0;
+               border-bottom: 1px solid rgba(255,255,255,.04); font-size: .82rem; }
+  .check-row:last-child { border-bottom: none; }
+  .check-id { color: var(--silver-dim); font-family: monospace; font-size: .72rem; min-width: 70px; }
+  .check-name { flex: 1; }
+  .check-detail { color: var(--muted); font-size: .75rem; max-width: 300px; text-align: right; }
+
+  /* Deficiency items */
+  .def-item { display: flex; align-items: center; gap: .6rem; padding: .45rem 0;
+              border-bottom: 1px solid rgba(255,255,255,.04); font-size: .82rem; }
+  .def-id { color: var(--silver-dim); font-family: monospace; font-size: .72rem; min-width: 24px; }
+  .def-name { flex: 1; }
+  .def-desc { color: var(--muted); font-size: .75rem; }
+
+  /* Progress bar */
+  .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,.06);
+                  border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+  .progress-fill.green { background: var(--green); }
+  .progress-fill.yellow { background: var(--yellow); }
+  .progress-fill.red { background: var(--red); }
+
+  /* Script output */
+  .output-box { background: #0a0d14; border: 1px solid var(--border); border-radius: 6px;
+                padding: .75rem; font-family: monospace; font-size: .75rem; color: var(--muted);
+                max-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-top: .5rem;
+                display: none; }
+
+  /* Loading */
+  .loading { color: var(--muted); font-style: italic; font-size: .82rem; padding: 1rem 0;
+             text-align: center; }
+
+  /* Header area */
+  .hero { margin-bottom: 1.25rem; }
+  .hero h1 { font-size: 1.5rem; margin-bottom: .2rem; }
+  .hero h1 span { color: var(--silver); }
+  .hero .case-info { color: var(--muted); font-size: .85rem; }
+  .hero .git-info { margin-top: .4rem; font-size: .78rem; }
+  .branch-badge { background: rgba(192,192,192,.1); color: var(--silver); padding: .1rem .4rem;
+                  border-radius: 3px; font-family: monospace; font-size: .72rem; }
+
+  /* Actions bar */
+  .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  /* Coverage chart */
+  .cov-table { border-collapse: collapse; font-size: 11px; }
+  .cov-table th, .cov-table td { padding: 2px 4px; text-align: center; white-space: nowrap; }
+  .cov-year { background: #334155; color: #e2e8f0; font-weight: 700; font-size: 11px; }
+  .cov-month { background: #1e293b; color: var(--muted); font-size: 9px; }
+  .cov-entity { background: #475569; color: #fff; font-weight: 700; text-align: left !important; font-size: 12px; }
+  .cov-acct { text-align: left !important; font-size: 11px; color: #93c5fd; font-weight: 600; min-width: 42px; }
+  .cov-label { text-align: left !important; font-size: 10px; color: var(--muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+  .cov-stats { font-size: 9px; color: var(--muted); }
+  .cov-gaps { font-size: 9px; font-weight: 600; }
+  .cov-gaps.bad { color: var(--red); }
+  .cov-gaps.ok { color: var(--green); }
+  .c { width: 20px; height: 20px; font-size: 8px; border: 1px solid #0f1219; cursor: default; }
+  .c.full { background: #166534; color: #bbf7d0; }
+  .c.empty { background: #1e3a5f; color: #7dd3fc; }
+  .c.mis { background: #7c2d12; color: #fed7aa; }
+  .c.gap { background: #450a0a; color: #fca5a5; font-weight: 700; }
+  .cov-legend { display: flex; gap: 12px; margin-top: 8px; font-size: 10px; color: var(--muted); }
+  .cov-legend .sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 3px; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="brand"><span>Silver Shield</span></a>
+  <a href="/" class="nav-link">Dashboard</a>
+  <a href="/discovery" class="nav-link active">Discovery</a>
+  <a href="http://localhost:5000/project/silver-shield" class="nav-link">Command Center</a>
+  <div class="spacer"></div>
+  <span class="port-badge">:5003</span>
+</nav>
+
+<div class="container">
+  <!-- Hero -->
+  <div class="hero" id="hero">
+    <h1><span>Silver Shield</span> Discovery</h1>
+    <div class="case-info" id="case-info">Loading...</div>
+    <div class="git-info" id="git-info"></div>
+  </div>
+
+  <!-- Summary row -->
+  <div class="grid-3" id="summary-grid" style="margin-bottom:1rem;">
+    <div class="stat-card"><div class="num" id="stat-entities">--</div><div class="label">Entities</div></div>
+    <div class="stat-card"><div class="num" id="stat-accounts">--</div><div class="label">Accounts</div></div>
+    <div class="stat-card"><div class="num" id="stat-statements">--</div><div class="label">Statements</div></div>
+    <div class="stat-card"><div class="num" id="stat-transactions">--</div><div class="label">Transactions</div></div>
+    <div class="stat-card"><div class="num" id="stat-compliance">--</div><div class="label">CI 42 Checks</div></div>
+    <div class="stat-card"><div class="num" id="stat-deficiency">--</div><div class="label">Deficiency Items</div></div>
+  </div>
+
+  <!-- Statement Coverage Chart (full width) -->
+  <div class="card" id="coverage-card">
+    <h2>Statement Coverage <span class="subtitle" id="coverage-status">loading...</span></h2>
+    <div id="coverage-body" style="overflow-x:auto;"><div class="loading">Loading coverage data...</div></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Left column -->
+    <div>
+      <!-- Tools -->
+      <div class="card">
+        <h2>Tools <span class="subtitle">CLI Scripts</span></h2>
+        <div class="actions">
+          <button onclick="runScript('extract')" id="btn-extract">Extract Statements</button>
+          <button onclick="runScript('ledger')" id="btn-ledger">Build Ledger</button>
+          <button onclick="runScript('analyze')" id="btn-analyze">Analyze Deposits</button>
+          <button onclick="runScript('tracker')" id="btn-tracker">Generate Tracker</button>
+        </div>
+        <div class="output-box" id="script-output"></div>
+      </div>
+
+      <!-- Extraction data -->
+      <div class="card">
+        <h2>Extraction <span class="subtitle" id="extraction-status">loading...</span></h2>
+        <div id="extraction-body"><div class="loading">Loading extraction data...</div></div>
+      </div>
+
+      <!-- Deposit analysis -->
+      <div class="card">
+        <h2>Deposit Analysis <span class="subtitle" id="deposit-status">loading...</span></h2>
+        <div id="deposit-body"><div class="loading">Loading deposit data...</div></div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- Compliance -->
+      <div class="card">
+        <h2>CI 42 Compliance <span class="subtitle" id="compliance-status">loading...</span></h2>
+        <div id="compliance-body"><div class="loading">Running checks...</div></div>
+      </div>
+
+      <!-- Deficiency tracker -->
+      <div class="card">
+        <h2>Deficiency Tracker <span class="subtitle" id="deficiency-status">loading...</span></h2>
+        <div id="deficiency-body"><div class="loading">Loading items...</div></div>
+      </div>
+
+      <!-- Entity map -->
+      <div class="card">
+        <h2>Entity Map <span class="subtitle" id="entity-status"></span></h2>
+        <div id="entity-body"><div class="loading">Loading entities...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = url => fetch(url).then(r => r.json());
+const fmt = n => typeof n === 'number' ? n.toLocaleString('en-US', {style:'currency', currency:'USD'}) : n;
+
+async function loadStatus() {
+  const d = await api('/api/status');
+  $('case-info').textContent = d.configured
+    ? `${d.case_name}${d.case_number ? ' | ' + d.case_number : ''}`
+    : 'No config.yaml found -- copy config.yaml.example to get started';
+  if (d.git) {
+    const g = d.git;
+    $('git-info').innerHTML = `<span class="branch-badge">${g.branch}</span>`
+      + (g.has_changes ? ` <span class="badge badge-yellow">${g.changed_files} changed</span>` : '')
+      + (g.recent_commits.length ? ` <span style="color:var(--muted);font-size:.72rem;">${g.recent_commits[0]}</span>` : '');
+  }
+  $('stat-entities').textContent = d.entities.length;
+  $('stat-accounts').textContent = d.account_count;
+  renderEntities(d.entities);
+}
+
+function renderEntities(entities) {
+  if (!entities.length) {
+    $('entity-body').innerHTML = '<div class="loading">No entities configured</div>';
+    return;
+  }
+  $('entity-status').textContent = `${entities.length} entities`;
+  let html = '';
+  entities.forEach(e => {
+    const typeBadge = e.type === 'personal' ? 'badge-blue' : 'badge-silver';
+    html += `<div style="margin-bottom:.75rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
+        <strong style="font-size:.85rem;">${e.name}</strong>
+        <span class="badge ${typeBadge}">${e.type}</span>
+      </div>`;
+    e.accounts.forEach(a => {
+      html += `<div style="display:flex;gap:.5rem;align-items:center;padding:.2rem 0 .2rem 1rem;font-size:.78rem;">
+        <span class="mono" style="color:var(--silver);">${a.id}</span>
+        <span style="color:var(--muted);">${a.institution} -- ${a.label}</span>
+        <span class="badge badge-silver" style="font-size:.65rem;">${a.parser}</span>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  $('entity-body').innerHTML = html;
+}
+
+async function loadExtraction() {
+  const d = await api('/api/extraction');
+  if (!d.available || !d.has_data) {
+    $('extraction-status').textContent = 'no data';
+    $('extraction-body').innerHTML = `<div class="loading">${d.message || 'Not configured'}</div>`;
+    $('stat-statements').textContent = '--';
+    $('stat-transactions').textContent = '--';
+    return;
+  }
+  const s = d.summary;
+  $('extraction-status').textContent = `${s.total_statements} stmts, ${s.total_transactions} txns`;
+  $('stat-statements').textContent = s.total_statements;
+  $('stat-transactions').textContent = s.total_transactions;
+
+  let html = '<table><tr><th>Account</th><th>Entity</th><th>Stmts</th><th class="currency">Deposits</th><th class="currency">Withdrawals</th><th>Err</th></tr>';
+  Object.entries(d.accounts).forEach(([id, a]) => {
+    const errBadge = a.mismatches > 0
+      ? `<span class="badge badge-red">${a.mismatches}</span>`
+      : `<span class="badge badge-green">0</span>`;
+    html += `<tr>
+      <td><span class="mono">${id}</span><br><span style="font-size:.7rem;color:var(--muted);">${a.label}</span></td>
+      <td style="font-size:.78rem;">${a.entity}</td>
+      <td>${a.statements}</td>
+      <td class="currency">${fmt(a.deposit_total)}</td>
+      <td class="currency">${fmt(a.withdrawal_total)}</td>
+      <td>${errBadge}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (s.accuracy) html += `<div style="margin-top:.5rem;font-size:.75rem;color:var(--muted);">Accuracy: ${s.accuracy}</div>`;
+  $('extraction-body').innerHTML = html;
+}
+
+async function loadDeposits() {
+  const d = await api('/api/deposits');
+  if (!d.available || !d.has_data) {
+    $('deposit-status').textContent = 'no data';
+    $('deposit-body').innerHTML = `<div class="loading">${d.message || 'Not configured'}</div>`;
+    return;
+  }
+  const data = d.data;
+  $('deposit-status').textContent = `${data.parent_count} parent deposits`;
+
+  const pct = data.grand_deposit_total > 0
+    ? ((data.parent_total / data.grand_deposit_total) * 100).toFixed(1) : 0;
+
+  let html = `<div class="grid-3" style="margin-bottom:.75rem;">
+    <div class="stat-card" style="padding:.6rem;">
+      <div class="num" style="font-size:1.2rem;color:var(--yellow);">${data.parent_count}</div>
+      <div class="label">Parent Deposits</div>
+    </div>
+    <div class="stat-card" style="padding:.6rem;">
+      <div class="num" style="font-size:1.2rem;color:var(--yellow);">${fmt(data.parent_total)}</div>
+      <div class="label">Parent Total</div>
+    </div>
+    <div class="stat-card" style="padding:.6rem;">
+      <div class="num" style="font-size:1.2rem;">${pct}%</div>
+      <div class="label">of All Deposits</div>
+    </div>
+  </div>`;
+
+  if (data.parent_deposits && data.parent_deposits.length) {
+    html += '<table><tr><th>Date</th><th>Account</th><th class="currency">Amount</th><th>Description</th></tr>';
+    data.parent_deposits.slice(0, 20).forEach(dep => {
+      html += `<tr>
+        <td class="mono">${dep.date}</td>
+        <td class="mono">${dep.account}</td>
+        <td class="currency">${fmt(dep.amount)}</td>
+        <td style="font-size:.78rem;color:var(--muted);">${dep.description}</td>
+      </tr>`;
+    });
+    if (data.parent_deposits.length > 20) {
+      html += `<tr><td colspan="4" style="color:var(--muted);font-size:.75rem;text-align:center;">... ${data.parent_deposits.length - 20} more</td></tr>`;
+    }
+    html += '</table>';
+  }
+  $('deposit-body').innerHTML = html;
+}
+
+async function loadCompliance() {
+  const d = await api('/api/compliance');
+  if (!d.available) {
+    $('compliance-status').textContent = 'unavailable';
+    $('compliance-body').innerHTML = '<div class="loading">Not configured</div>';
+    $('stat-compliance').textContent = '--';
+    return;
+  }
+  if (d.error) {
+    $('compliance-body').innerHTML = `<div class="loading" style="color:var(--red);">${d.error}</div>`;
+    return;
+  }
+
+  $('compliance-status').textContent = `${d.passed}/${d.total} passed`;
+  $('stat-compliance').textContent = `${d.passed}/${d.total}`;
+  $('stat-compliance').style.color = d.passed === d.total ? 'var(--green)' : 'var(--yellow)';
+
+  let html = '';
+  d.results.forEach(r => {
+    const dot = r.passed ? 'dot-green' : (r.severity === 'critical' ? 'dot-red' : 'dot-yellow');
+    html += `<div class="check-row">
+      <span class="dot ${dot}"></span>
+      <span class="check-id">${r.check_id}</span>
+      <span class="check-name">${r.name}</span>
+      <span class="badge ${r.passed ? 'badge-green' : 'badge-red'}">${r.severity}</span>
+      <span class="check-detail">${r.details}</span>
+    </div>`;
+  });
+  $('compliance-body').innerHTML = html;
+}
+
+async function loadDeficiency() {
+  const d = await api('/api/deficiency');
+  if (!d.available) {
+    $('deficiency-status').textContent = 'unavailable';
+    $('deficiency-body').innerHTML = '<div class="loading">Not configured</div>';
+    $('stat-deficiency').textContent = '--';
+    return;
+  }
+
+  $('stat-deficiency').textContent = `${d.complete}/${d.total}`;
+  $('stat-deficiency').style.color = d.complete === d.total ? 'var(--green)'
+    : d.complete > 0 ? 'var(--yellow)' : 'var(--red)';
+  $('deficiency-status').textContent = `${d.complete} done, ${d.partial} partial, ${d.missing} missing`;
+
+  const pct = d.total > 0 ? Math.round((d.complete / d.total) * 100) : 0;
+  const barClass = pct > 70 ? 'green' : pct > 30 ? 'yellow' : 'red';
+  let html = `<div class="progress-bar" style="margin-bottom:.75rem;">
+    <div class="progress-fill ${barClass}" style="width:${pct}%;"></div>
+  </div>`;
+
+  d.items.forEach(item => {
+    const badge = {complete: 'badge-green', partial: 'badge-yellow', missing: 'badge-red'}[item.status] || 'badge-red';
+    html += `<div class="def-item">
+      <span class="def-id">${item.id}</span>
+      <span class="def-name">${item.name}</span>
+      <span class="badge ${badge}">${item.status}</span>
+    </div>`;
+  });
+  $('deficiency-body').innerHTML = html;
+}
+
+async function runScript(name) {
+  const btn = $('btn-' + name);
+  const outBox = $('script-output');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  outBox.style.display = 'block';
+  outBox.textContent = `Running ${name}...\n`;
+
+  try {
+    const d = await fetch('/api/run/' + name, {method: 'POST'}).then(r => r.json());
+    outBox.textContent = d.stdout || '';
+    if (d.stderr) outBox.textContent += '\n' + d.stderr;
+    if (d.error) outBox.textContent = d.error;
+
+    // Refresh relevant data
+    if (name === 'extract') loadExtraction();
+    if (name === 'analyze') loadDeposits();
+    if (name === 'ledger') loadCompliance();
+  } catch (e) {
+    outBox.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = {extract:'Extract Statements', ledger:'Build Ledger', analyze:'Analyze Deposits', tracker:'Generate Tracker'}[name];
+  }
+}
+
+async function loadCoverage() {
+  const d = await api('/api/coverage');
+  if (!d.available || !d.has_data) {
+    $('coverage-status').textContent = 'no data';
+    $('coverage-body').innerHTML = `<div class="loading">${d.message || 'Run extraction first'}</div>`;
+    return;
+  }
+
+  const months = d.months;
+  const accounts = d.accounts;
+  const ML = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+
+  // Group by entity
+  const byEntity = {};
+  Object.entries(accounts).forEach(([id, a]) => {
+    if (!byEntity[a.entity]) byEntity[a.entity] = [];
+    byEntity[a.entity].push([id, a]);
+  });
+
+  // Year spans
+  const years = {};
+  months.forEach(m => {
+    const y = m.slice(0,4);
+    years[y] = (years[y] || 0) + 1;
+  });
+
+  // Build year header
+  let yh = '<th></th><th></th><th></th><th></th>';
+  let mh = '<th class="cov-acct">Acct</th><th class="cov-label">Label</th><th class="cov-stats">S/T</th><th class="cov-gaps">Gaps</th>';
+  Object.entries(years).forEach(([yr, cnt]) => {
+    yh += `<th colspan="${cnt}" class="cov-year">${yr}</th>`;
+  });
+  months.forEach(m => {
+    const mi = parseInt(m.slice(5)) - 1;
+    mh += `<th class="cov-month">${ML[mi]}</th>`;
+  });
+
+  let rows = '';
+  let totalGaps = 0;
+
+  Object.keys(byEntity).sort().forEach(entity => {
+    rows += `<tr><td colspan="${months.length + 4}" class="cov-entity">${entity}</td></tr>`;
+    byEntity[entity].forEach(([id, a]) => {
+      let cells = '';
+      let gaps = 0;
+      months.forEach(m => {
+        const cov = a.coverage[m];
+        if (cov) {
+          if (cov.mismatches > 0) {
+            cells += `<td class="c mis" title="${m}: ${cov.txns} txns, ${cov.mismatches} err, $${cov.balance.toLocaleString()}">${cov.txns||'·'}</td>`;
+          } else if (cov.txns > 0) {
+            cells += `<td class="c full" title="${m}: ${cov.txns} txns, $${cov.balance.toLocaleString()}\n${cov.file}">${cov.txns}</td>`;
+          } else {
+            cells += `<td class="c empty" title="${m}: 0 txns, $${cov.balance.toLocaleString()}\n${cov.file}">·</td>`;
+          }
+        } else {
+          cells += `<td class="c gap" title="${m}: NO STATEMENT">×</td>`;
+          gaps++;
+        }
+      });
+      totalGaps += gaps;
+      const gapCls = gaps === 0 ? 'ok' : 'bad';
+      rows += `<tr>
+        <td class="cov-acct">${id}</td>
+        <td class="cov-label">${a.institution} ${a.label}</td>
+        <td class="cov-stats">${a.total_stmts}s/${a.total_txns}t</td>
+        <td class="cov-gaps ${gapCls}">${gaps}</td>
+        ${cells}
+      </tr>`;
+    });
+  });
+
+  $('coverage-status').textContent = `${months.length} months, ${Object.keys(accounts).length} accounts, ${totalGaps} gaps`;
+  $('coverage-body').innerHTML = `
+    <table class="cov-table">
+      <thead><tr>${yh}</tr><tr>${mh}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="cov-legend">
+      <span><span class="sw" style="background:#166534;"></span>Parsed</span>
+      <span><span class="sw" style="background:#1e3a5f;"></span>Stmt (0 txns)</span>
+      <span><span class="sw" style="background:#7c2d12;"></span>Mismatch</span>
+      <span><span class="sw" style="background:#450a0a;"></span>Gap</span>
+    </div>`;
+}
+
+// Load everything
+loadStatus();
+loadExtraction();
+loadDeposits();
+loadCompliance();
+loadDeficiency();
+loadCoverage();
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 # Personal data -- NEVER commit
 config.yaml
+data/
 *.xlsx
 *.pdf
 *.json

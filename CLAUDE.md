@@ -1,60 +1,75 @@
 # Silver Shield -- Financial Bookkeeping Armor
 
-## Who is this for?
+## What is Silver Shield?
 
-Silver Shield is a bookkeeping tool for individuals navigating family law discovery, small business financial reporting, or personal financial organization. It was built to handle the overwhelming volume of bank statements, transaction extraction, entity separation, and compliance tracking required by Rule 121 deficiency letters and similar financial discovery processes.
+Silver Shield is financial bookkeeping armor -- it preserves and protects resources so they can ultimately be invested. Like community-shield is one tool that builds all websites, Silver Shield is one tool that manages accounting for all projects in the ecosystem.
 
-It is designed to be operated by Claude Code or any AI agent under human supervision.
+Any entity -- person, business, project, or agent -- gets its own books. Auto-agent is the top-level agent (under the human), and each project has its own accounts. Distributist principles applied fractally: resources managed at the lowest competent level (subsidiarity), with upward reporting to the human authority at the root.
 
-## What does this codebase do?
+An agent unto itself is not acceptable. Every agent serves a person. Agents may manage sub-agents, each with their own accounting, but there is always a human at the top.
 
-Silver Shield automates the painful parts of financial discovery:
-
-1. **Statement Extraction** -- Parses bank statement PDFs (both text-based and image/OCR) into structured JSON transactions
-2. **Transaction Categorization** -- Classifies deposits as payroll, business income, crypto, transfers, peer payments, or generic deposits (potential parent loans)
-3. **Entity Separation** -- Maps accounts to legal entities (personal, business entities) based on account holder names from actual statement headers
-4. **Ledger Generation** -- Builds Excel workbooks with P&L statements, general ledgers, account summaries, parent debt tracking, and personal financial statements
-5. **Compliance Tracking** -- Generates HTML dashboards tracking completion of deficiency letter items
-6. **Parent Debt Identification** -- Distinguishes payroll (ACH/direct deposit) from check deposits (generic "DEPOSIT" entries) to trace unsecured family loans
+Silver Shield tracks resources in any unit of exchange: USD, silver (troy oz), EZ merit points, Bitcoin, Ethereum, or custom currencies. It runs **entirely offline** -- Angular frontend and Flask backend both serve from localhost only. Financial data never leaves the machine.
 
 ## Architecture
 
 ```
 silver_shield/
-  config.py         -- Config loader (YAML-driven, no hardcoded paths)
-  extractors/       -- Bank statement parsers (Centier, USAA, Coinbase, generic OCR)
-  categorizers/     -- Deposit and transaction classification
-  ledger/           -- Excel workbook builder with openpyxl
-  compliance/       -- CI 42 series audit checks + deficiency tracking
-  reports/          -- HTML dashboard and summary report generators
-scripts/            -- CLI entry points for extraction, ledger building, analysis
-templates/          -- Empty ledger template, dashboard HTML template
-data/               -- Continuity binder (gitignored: user data goes here locally)
-config.yaml.example -- Sample configuration (copy to config.yaml, set your paths)
+  config.py             -- YAML config loader (currencies, hierarchy, oracle)
+  core/                 -- Accounting engine (the heart)
+    models.py           -- Four primitives: Entity, Account, Currency, Entry
+    ledger.py           -- Append-only double-entry ledger
+    double_entry.py     -- Transaction patterns (deposit, withdrawal, transfer, liability)
+    entities.py         -- Hierarchy management, human-authority validation
+    accounts.py         -- Account operations (open, close, balance, trial balance)
+    currencies.py       -- Currency registry
+  storage/              -- Persistence (offline only)
+    base.py             -- Abstract interface
+    json_store.py       -- JSONL file backend (local, no deps)
+  oracle/               -- Exchange rate sources
+  resources/            -- Per-entity resource tracking
+  integrations/         -- EZ Merit, Community Shield, Auto-Agent, Stewardship Exchange
+  extractors/           -- Bank statement parsers (Centier, USAA, OCR)
+  categorizers/         -- Deposit classification engine
+  ledger/               -- Excel workbook builder
+  compliance/           -- CI 42 audit checks + deficiency tracker
+  reports/              -- Report generators
+dashboard/              -- Flask API + admin UI (port 5003)
+frontend/               -- Angular 21 dashboard (future)
+scripts/                -- CLI entry points
+data/                   -- Local data (gitignored)
 ```
 
-## Config-driven paths
+## Core Design Principles
 
-**No personal financial data lives in this repository.** All file paths are configured via `config.yaml`:
+- **Four primitives**: Entity, Account, Currency, Entry. Everything composes from these.
+- **Double-entry**: Every transaction creates a debit and credit of equal amount. Single-entry cannot be audited.
+- **Append-only ledger**: Entries are never modified or deleted. Corrections are new entries.
+- **Idempotency**: Duplicate-safe via idempotency keys (EZ Merit pattern).
+- **Human authority at root**: Entity hierarchy always terminates at a person.
+- **Multi-currency**: Each account holds one currency. Cross-currency transactions create linked pairs.
+- **Offline only**: Angular frontend + Flask backend serve from localhost. No cloud storage. JSON/JSONL is the production backend.
+- **Config-driven**: No personal data in the repo. All paths via config.yaml.
+- **One tool, all projects**: Like community-shield builds all websites, Silver Shield manages accounting for all projects. Auto-agent is the top agent entity, each project gets its own accounts.
 
-```yaml
-data_dir: /path/to/your/bank/statements
-output_dir: /path/to/your/output
-entities:
-  - name: "Your Name"
-    type: personal
-    accounts: [x1234, x5678]
-  - name: "Your Business LLC"
-    type: business
-    accounts: [x9012]
-```
+## Modules
 
-## Current priorities
+### Bank Statement Pipeline (existing)
+Parses PDFs, categorizes deposits, builds Excel ledgers. This is one tool within Silver Shield, not its identity.
 
-1. Generalize extraction pipeline for any Centier or USAA statement set
-2. Make ledger builder entity-aware from config (not hardcoded account mappings)
-3. Parent debt identification as a reusable pattern for any "check deposit vs direct deposit" separation
-4. Deficiency tracker as a generic compliance checklist tool
+### Core Accounting Engine
+The four primitives + append-only double-entry ledger. Storage-agnostic (JSON locally, Supabase for production).
+
+### Exchange Rate Oracle
+Silver spot (via community-shield), crypto prices (CoinGecko), merit points (not convertible -- site-sovereign per Stewardship Exchange spec).
+
+### Resource Tracking
+Per-entity budgets, token usage, API costs. Enables tracking which project is doing well.
+
+### Integrations
+- **EZ Merit**: Read balances, award points for financial milestones
+- **Community Shield**: Silver spot price, agent registration, Supabase
+- **Auto-Agent**: Token budget sync, resource consumption recording
+- **Stewardship Exchange**: Enrollment balance display (read-only)
 
 ## Rules and constraints
 
@@ -63,35 +78,50 @@ entities:
 - **Zero formula errors.** Every Excel output must pass recalc verification with 0 errors.
 - **Subsidiarity.** Automate extraction and categorization. Human reviews before legal assertion.
 - **Sabbath.** No automated batch runs on Sunday.
-- **Double-entry integrity.** Every transaction in the General Ledger must balance to statement totals.
+- **Double-entry integrity.** Every transaction must create balanced debit/credit entries.
+- **Append-only.** Ledger entries are never modified or deleted.
+
+## Data safety -- NEVER read financial data
+
+Claude Code must NEVER read files containing actual financial data. All financial data stays local; the dashboard and scripts process it at runtime on localhost.
+
+**Never read:**
+- `config.yaml` (use `config.yaml.example` for reference)
+- Anything in `data/` or the configured `output_dir`
+- Any `.pdf`, `.xlsx`, or extracted `.json` transaction files
+- Any file path outside this repo that might contain user financial data
+
+**Always safe to read:**
+- All `.py` source files in `silver_shield/`, `scripts/`, `dashboard/`, `tests/`
+- `config.yaml.example`, `.dominion.json`, `.dashboard.json`
+- Templates, HTML, CSS, requirements.txt, .gitignore
+
+**When debugging:** The user will describe errors and paste relevant output. Do not read output files to diagnose -- ask the user what they see.
+
+A `PreToolUse` hook in `.claude/settings.local.json` enforces this automatically.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
-| `silver_shield/config.py` | YAML config loader, path resolution |
-| `silver_shield/extractors/centier.py` | Centier bank statement parser (columnar format) |
-| `silver_shield/extractors/usaa.py` | USAA statement parser (multi-line transactions) |
-| `silver_shield/extractors/ocr.py` | Image-based PDF extraction via pdfplumber + tesseract |
+| `silver_shield/core/models.py` | Four primitives: Entity, Account, Currency, Entry |
+| `silver_shield/core/ledger.py` | Append-only double-entry ledger engine |
+| `silver_shield/core/double_entry.py` | Transaction patterns (deposit, withdrawal, transfer) |
+| `silver_shield/core/entities.py` | Entity hierarchy, human-authority validation |
+| `silver_shield/core/accounts.py` | Account operations |
+| `silver_shield/storage/json_store.py` | JSONL file persistence |
+| `silver_shield/config.py` | YAML config loader |
+| `silver_shield/extractors/centier.py` | Centier bank statement parser |
+| `silver_shield/extractors/usaa.py` | USAA statement parser |
 | `silver_shield/categorizers/deposits.py` | Deposit classification engine |
 | `silver_shield/ledger/builder.py` | Excel workbook generator |
-| `silver_shield/ledger/parent_debt.py` | Parent loan identification logic |
-| `silver_shield/compliance/ci42.py` | CI 42 audit compliance checks |
-| `silver_shield/reports/tracker.py` | HTML deficiency tracker generator |
-| `scripts/extract_all.py` | CLI: extract transactions from all statements |
-| `scripts/build_ledger.py` | CLI: generate Excel ledger from extracted data |
-| `scripts/analyze_deposits.py` | CLI: categorize and report on all deposits |
+| `silver_shield/compliance/ci42.py` | CI 42 compliance checks |
+| `silver_shield/compliance/deficiency.py` | Deficiency tracker |
+| `dashboard/app.py` | Flask API + dashboard (port 5003) |
+| `tests/test_core.py` | Core engine tests (36 tests) |
 
 ## Model guidance
 
-- **Opus** for architectural decisions, entity separation logic, legal compliance review
-- **Sonnet** for extraction scripts, categorization rules, report generation
+- **Opus** for architectural decisions, entity hierarchy design, compliance review
+- **Sonnet** for extraction scripts, categorization rules, API endpoints
 - **Haiku** for bulk OCR processing, simple file operations
-
-## Recent decisions
-
-- Config-driven paths (not gitignored data/ folders) -- chosen for cleaner separation
-- pdfplumber preferred over tesseract for text-based PDFs (10x faster, more accurate)
-- Two-phase Centier parser: collect date+desc entries and amount entries separately, then zip
-- USAA multi-line parser: regex for MM/DD + debit/credit/balance columns, continuation line collection
-- Deposit categorization uses keyword matching with hierarchy: crypto > payroll > business > transfer > interest > refund > generic deposit

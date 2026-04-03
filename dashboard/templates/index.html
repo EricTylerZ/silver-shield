@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Silver Shield -- Financial Bookkeeping Armor</title>
+<style>
+  :root {
+    --silver: #c0c0c0; --silver-dim: #8a8a9a; --silver-bright: #e8e8f0;
+    --bg: #0f1219; --card: #181d28; --card-hover: #1e2535; --border: #2a3040;
+    --text: #e0e4ec; --muted: #7a8498;
+    --green: #22c55e; --yellow: #eab308; --red: #ef4444; --blue: #3b82f6;
+    --teal: #00918B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text);
+         min-height: 100vh; }
+
+  nav { background: linear-gradient(135deg, #12151f 0%, #1a1f2e 100%);
+        padding: .8rem 1.5rem; display: flex; align-items: center; gap: 1.2rem;
+        border-bottom: 2px solid var(--silver-dim); }
+  nav .brand { font-size: 1.15rem; font-weight: 600; color: #fff; text-decoration: none; }
+  nav .brand span { color: var(--silver); }
+  nav a.nav-link { color: var(--muted); text-decoration: none; font-size: .82rem;
+                   padding: .25rem .5rem; border-radius: 4px; transition: all .2s; }
+  nav a.nav-link:hover, nav a.nav-link.active { color: #fff; background: rgba(255,255,255,.06); }
+  nav .spacer { flex: 1; }
+  .port-badge { font-size: .7rem; color: var(--silver-dim); padding: .2rem .5rem;
+                border: 1px solid var(--border); border-radius: 12px; font-family: monospace; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.25rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; }
+  @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+          padding: 1.25rem; margin-bottom: 1rem; }
+  .card h2 { font-size: .9rem; color: var(--silver); border-bottom: 1px solid var(--border);
+             padding-bottom: .5rem; margin-bottom: .75rem; display: flex;
+             align-items: center; justify-content: space-between; }
+  .card h2 .subtitle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+
+  .stat-card { background: var(--card); border-radius: 8px; border: 1px solid var(--border);
+               padding: 1rem; text-align: center; }
+  .stat-card .num { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { font-size: .7rem; color: var(--muted); text-transform: uppercase;
+                      letter-spacing: .06em; margin-top: .2rem; }
+
+  .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px;
+           font-weight: 600; font-size: .72rem; }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+  .badge-yellow { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+  .badge-blue { background: rgba(59,130,246,.15); color: var(--blue); }
+  .badge-silver { background: rgba(192,192,192,.12); color: var(--silver); }
+
+  .mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: .78rem; }
+  .currency { text-align: right; font-family: monospace; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th { text-align: left; color: var(--muted); font-size: .72rem; text-transform: uppercase;
+       letter-spacing: .04em; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+  td { padding: .5rem .6rem; border-bottom: 1px solid rgba(255,255,255,.04); }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .loading { color: var(--muted); font-style: italic; font-size: .82rem; padding: 1rem 0;
+             text-align: center; }
+
+  .hero { margin-bottom: 1.25rem; }
+  .hero h1 { font-size: 1.5rem; margin-bottom: .2rem; }
+  .hero h1 span { color: var(--silver); }
+  .hero .subtitle-line { color: var(--muted); font-size: .85rem; }
+  .hero .git-info { margin-top: .4rem; font-size: .78rem; }
+  .branch-badge { background: rgba(192,192,192,.1); color: var(--silver); padding: .1rem .4rem;
+                  border-radius: 3px; font-family: monospace; font-size: .72rem; }
+
+  /* Entity tree */
+  .entity-node { margin-bottom: .5rem; }
+  .entity-header { display: flex; align-items: center; gap: .5rem; padding: .4rem .5rem;
+                   border-radius: 6px; cursor: default; }
+  .entity-header:hover { background: rgba(255,255,255,.03); }
+  .entity-name { font-weight: 600; font-size: .88rem; }
+  .entity-children { margin-left: 1.5rem; border-left: 1px solid var(--border); padding-left: .75rem; }
+  .entity-accounts { margin-left: .5rem; margin-top: .25rem; }
+  .account-row { display: flex; align-items: center; gap: .5rem; padding: .2rem 0;
+                 font-size: .78rem; color: var(--muted); }
+  .account-balance { color: var(--silver-bright); font-family: monospace; margin-left: auto; }
+
+  /* Module cards */
+  .module-card { background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+                 padding: 1rem 1.25rem; display: flex; align-items: center; gap: 1rem;
+                 text-decoration: none; color: var(--text); transition: all .2s; }
+  .module-card:hover { background: var(--card-hover); border-color: var(--silver-dim); }
+  .module-icon { font-size: 1.5rem; min-width: 2rem; text-align: center; }
+  .module-info { flex: 1; }
+  .module-info .name { font-weight: 600; font-size: .9rem; }
+  .module-info .desc { color: var(--muted); font-size: .75rem; margin-top: .15rem; }
+  .module-status { font-size: .72rem; }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  .dot-yellow { background: var(--yellow); }
+  .dot-gray { background: #555; }
+
+  /* Roadmap */
+  .roadmap { display: flex; flex-direction: column; gap: .5rem; }
+  .phase { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .phase-complete { border-color: rgba(34,197,94,.25); }
+  .phase-header { display: flex; align-items: center; gap: .75rem; padding: .7rem 1rem;
+                  cursor: pointer; }
+  .phase-header:hover { background: rgba(255,255,255,.02); }
+  .phase-num { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: flex;
+               align-items: center; justify-content: center; font-size: .75rem; font-weight: 700;
+               background: var(--border); color: var(--silver); flex-shrink: 0; }
+  .phase-complete .phase-num { background: rgba(34,197,94,.2); color: var(--green); }
+  .phase-title { flex: 1; font-weight: 600; font-size: .88rem; }
+  .phase-body { padding: 0 1rem .75rem 3.1rem; display: none; }
+  .phase.open .phase-body { display: block; }
+  .phase-items { display: flex; flex-direction: column; gap: .25rem; }
+  .phase-item { font-size: .78rem; color: var(--muted); padding-left: 1rem;
+                position: relative; }
+  .phase-item::before { content: ''; position: absolute; left: 0; top: .45rem;
+                        width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+  .phase-item.done { color: var(--text); }
+  .phase-item.done::before { background: var(--green); }
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="brand"><span>Silver Shield</span></a>
+  <a href="/" class="nav-link active">Dashboard</a>
+  <a href="/discovery" class="nav-link">Discovery</a>
+  <a href="http://localhost:5000/project/silver-shield" class="nav-link">Command Center</a>
+  <div class="spacer"></div>
+  <span class="port-badge">:5003</span>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1><span>Silver Shield</span> Financial Bookkeeping Armor</h1>
+    <div class="subtitle-line" id="subtitle">Loading...</div>
+    <div class="git-info" id="git-info"></div>
+  </div>
+
+  <!-- Summary stats -->
+  <div class="grid-4" id="summary-grid" style="margin-bottom:1rem;">
+    <div class="stat-card"><div class="num" id="stat-entities">--</div><div class="label">Entities</div></div>
+    <div class="stat-card"><div class="num" id="stat-accounts">--</div><div class="label">Accounts</div></div>
+    <div class="stat-card"><div class="num" id="stat-currencies">5</div><div class="label">Currencies</div></div>
+    <div class="stat-card"><div class="num" id="stat-compliance">--</div><div class="label">CI 42</div></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Left: Entity Hierarchy -->
+    <div>
+      <div class="card">
+        <h2>Entity Hierarchy <span class="subtitle">subsidiarity</span></h2>
+        <div id="entity-tree"><div class="loading">Loading entities...</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Currencies <span class="subtitle">units of account</span></h2>
+        <div id="currencies-body"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Right: Modules + Status -->
+    <div>
+      <div class="card">
+        <h2>Modules</h2>
+        <div style="display:flex;flex-direction:column;gap:.5rem;">
+          <a href="/discovery" class="module-card">
+            <div class="module-icon">&#x1F6E1;</div>
+            <div class="module-info">
+              <div class="name">Discovery</div>
+              <div class="desc">Rule 121 deficiency response -- statement extraction, categorization, ledger building, compliance tracking</div>
+            </div>
+            <div class="module-status" id="discovery-status"></div>
+          </a>
+          <div class="module-card" style="opacity:.5;cursor:default;">
+            <div class="module-icon">&#x1F4B1;</div>
+            <div class="module-info">
+              <div class="name">Exchange</div>
+              <div class="desc">Silver spot, crypto prices, cross-currency conversion</div>
+            </div>
+            <span class="badge badge-silver">Phase 2</span>
+          </div>
+          <div class="module-card" style="opacity:.5;cursor:default;">
+            <div class="module-icon">&#x1F4CA;</div>
+            <div class="module-info">
+              <div class="name">Resource Tracking</div>
+              <div class="desc">Per-project budgets, token usage, API costs</div>
+            </div>
+            <span class="badge badge-silver">Phase 6</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Core Engine <span class="subtitle">accounting primitives</span></h2>
+        <div id="engine-body"><div class="loading">Loading...</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Recent Ledger Entries <span class="subtitle" id="ledger-status"></span></h2>
+        <div id="ledger-body"><div class="loading">No entries yet</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roadmap -->
+  <div class="card">
+    <h2>Roadmap <span class="subtitle">phased implementation</span></h2>
+    <div class="roadmap">
+      <div class="phase phase-complete">
+        <div class="phase-header">
+          <span class="phase-num">1</span>
+          <span class="phase-title">Core Engine</span>
+          <span class="badge badge-green">complete</span>
+        </div>
+        <div class="phase-body">
+          <div class="phase-items">
+            <div class="phase-item done">Four primitives: Entity, Account, Currency, Entry</div>
+            <div class="phase-item done">Append-only double-entry ledger engine</div>
+            <div class="phase-item done">Entity hierarchy with human-authority validation</div>
+            <div class="phase-item done">JSONL file persistence (offline, no deps)</div>
+            <div class="phase-item done">Currency registry (USD, XAG, MERIT, BTC, ETH)</div>
+            <div class="phase-item done">36 tests passing</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">2</span>
+          <span class="phase-title">Oracle + Integrations</span>
+          <span class="badge badge-yellow">next</span>
+        </div>
+        <div class="phase-body">
+          <div class="phase-items">
+            <div class="phase-item">Silver spot oracle (community-shield /api/silver/spot)</div>
+            <div class="phase-item">Crypto price oracle (CoinGecko with cache)</div>
+            <div class="phase-item">Unified rate lookup: get_rate(from, to)</div>
+            <div class="phase-item">EZ Merit integration (read balances, award milestones)</div>
+            <div class="phase-item">Community Shield integration (silver spot, agent registration)</div>
+            <div class="phase-item">Auto-Agent integration (token budget sync)</div>
+            <div class="phase-item">Extend config.py with currencies, hierarchy, oracle sections</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">3</span>
+          <span class="phase-title">Import Bridge</span>
+          <span class="badge badge-silver">planned</span>
+        </div>
+        <div class="phase-body">
+          <div class="phase-items">
+            <div class="phase-item">Import all_transactions.json into core double-entry ledger</div>
+            <div class="phase-item">Map categories to account types (payroll -> income, generic deposit -> liability)</div>
+            <div class="phase-item">Idempotency keys from date + account + amount + description</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">4</span>
+          <span class="phase-title">v2 API</span>
+          <span class="badge badge-silver">planned</span>
+        </div>
+        <div class="phase-body">
+          <div class="phase-items">
+            <div class="phase-item">Entity, account, transaction REST endpoints</div>
+            <div class="phase-item">Balance sheet, P&L, trial balance, subsidiarity rollup reports</div>
+            <div class="phase-item">CORS for Angular frontend</div>
+            <div class="phase-item">Import endpoint (bank statements -> core ledger)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">5</span>
+          <span class="phase-title">Angular 21 Frontend</span>
+          <span class="badge badge-silver">planned</span>
+        </div>
+        <div class="phase-body">
+          <div class="phase-items">
+            <div class="phase-item">Offline Angular 21 app (matches community-shield pattern)</div>
+            <div class="phase-item">Entity tree, account detail, ledger browser</div>
+            <div class="phase-item">Compliance + deficiency views</div>
+            <div class="phase-item">Import wizard (bank statement -> ledger flow)</div>
+            <div class="phase-item">Prep for banking client engagements</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">6</span>
+          <span class="phase-title">Resource Tracking</span>
+          <span class="badge badge-silver">planned</span>
+        </div>
+        <div class="phase-body">
+          <div class="phase-items">
+            <div class="phase-item">Per-project token budgets, API costs, compute hours</div>
+            <div class="phase-item">Auto-agent as top entity, each project with own accounts</div>
+            <div class="phase-item">Sabbath enforcement for batch operations</div>
+            <div class="phase-item">Cross-project resource health dashboards</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = url => fetch(url).then(r => r.json());
+
+async function loadStatus() {
+  const d = await api('/api/status');
+  $('subtitle').textContent = d.configured
+    ? `${d.case_name}${d.case_number ? ' | ' + d.case_number : ''} -- offline on localhost:5003`
+    : 'Offline financial bookkeeping armor -- localhost:5003';
+  if (d.git) {
+    const g = d.git;
+    $('git-info').innerHTML = `<span class="branch-badge">${g.branch}</span>`
+      + (g.has_changes ? ` <span class="badge badge-yellow">${g.changed_files} changed</span>` : '')
+      + (g.recent_commits.length ? ` <span style="color:var(--muted);font-size:.72rem;">${g.recent_commits[0]}</span>` : '');
+  }
+
+  // Config-driven entities (the human and their companies)
+  if (d.configured && d.entities.length) {
+    $('stat-entities').textContent = d.entities.length;
+    $('stat-accounts').textContent = d.account_count;
+    renderConfigEntities(d.entities);
+  } else {
+    $('stat-entities').textContent = '--';
+    $('stat-accounts').textContent = '--';
+  }
+
+  // Load core engine entities too
+  loadCoreEntities(d);
+}
+
+function renderConfigEntities(entities) {
+  // These are the human-level entities from config.yaml (person + businesses)
+  // They sit at the top of the hierarchy
+  let html = '';
+  entities.forEach(e => {
+    const icon = e.type === 'personal' ? '&#x1F464;' : '&#x1F3E2;';
+    const typeBadge = e.type === 'personal' ? 'badge-blue' : 'badge-silver';
+    html += `<div class="entity-node">
+      <div class="entity-header">
+        <span>${icon}</span>
+        <span class="entity-name">${e.name}</span>
+        <span class="badge ${typeBadge}">${e.type}</span>
+        <span style="color:var(--muted);font-size:.72rem;margin-left:auto;">${e.accounts.length} accounts</span>
+      </div>
+      <div class="entity-accounts">`;
+    e.accounts.forEach(a => {
+      html += `<div class="account-row">
+        <span class="mono" style="color:var(--silver);">${a.id}</span>
+        <span>${a.institution} -- ${a.label}</span>
+        <span class="badge badge-silver" style="font-size:.6rem;">${a.parser}</span>
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+
+  // Show project-level entities placeholder
+  html += `<div class="entity-node" style="margin-top:.75rem;">
+    <div class="entity-header" style="opacity:.6;">
+      <span>&#x1F916;</span>
+      <span class="entity-name">Auto-Agent</span>
+      <span class="badge badge-silver">agent</span>
+      <span style="color:var(--muted);font-size:.72rem;margin-left:auto;">top-level agent</span>
+    </div>
+    <div class="entity-children" id="project-entities"></div>
+  </div>`;
+
+  $('entity-tree').innerHTML = html;
+}
+
+async function loadCoreEntities(statusData) {
+  // Try loading from the v2 API (if available)
+  try {
+    const d = await api('/api/v2/entities');
+    if (d.entities && d.entities.length) {
+      $('stat-entities').textContent = d.entities.length;
+      // Could render core entities here when they exist
+    }
+  } catch(e) {
+    // v2 API not yet available, that's fine
+  }
+
+  // If no config entities either, show empty state
+  if (!statusData.configured) {
+    $('entity-tree').innerHTML = `<div class="loading">
+      No config.yaml found. Copy config.yaml.example to get started.<br>
+      <span style="font-size:.75rem;">Entity hierarchy: Person (you) -> Businesses -> Accounts</span>
+    </div>`;
+  }
+}
+
+async function loadDiscoveryStatus() {
+  try {
+    const d = await api('/api/extraction');
+    if (d.available && d.has_data) {
+      const s = d.summary;
+      $('discovery-status').innerHTML = `<span class="badge badge-green">${s.total_statements} stmts</span>`;
+    } else {
+      $('discovery-status').innerHTML = '<span class="badge badge-yellow">no data</span>';
+    }
+  } catch(e) {
+    $('discovery-status').innerHTML = '<span class="badge badge-red">error</span>';
+  }
+}
+
+async function loadCompliance() {
+  try {
+    const d = await api('/api/compliance');
+    if (d.available && !d.error) {
+      $('stat-compliance').textContent = `${d.passed}/${d.total}`;
+      $('stat-compliance').style.color = d.passed === d.total ? 'var(--green)' : 'var(--yellow)';
+    }
+  } catch(e) {}
+}
+
+function loadCurrencies() {
+  const currencies = [
+    {code: 'USD', name: 'US Dollar', symbol: '$', precision: 2, status: 'active'},
+    {code: 'XAG', name: 'Silver (Troy Oz)', symbol: 'oz', precision: 4, status: 'active'},
+    {code: 'MERIT', name: 'EZ Merit Points', symbol: 'MP', precision: 0, status: 'active', note: 'not convertible'},
+    {code: 'BTC', name: 'Bitcoin', symbol: 'BTC', precision: 8, status: 'active'},
+    {code: 'ETH', name: 'Ethereum', symbol: 'ETH', precision: 8, status: 'active'},
+  ];
+
+  let html = '<table><tr><th>Code</th><th>Name</th><th>Symbol</th><th>Precision</th><th></th></tr>';
+  currencies.forEach(c => {
+    const note = c.note ? `<span class="badge badge-yellow">${c.note}</span>` : '';
+    html += `<tr>
+      <td class="mono" style="color:var(--silver);">${c.code}</td>
+      <td>${c.name}</td>
+      <td>${c.symbol}</td>
+      <td>${c.precision}</td>
+      <td>${note}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  $('currencies-body').innerHTML = html;
+  $('stat-currencies').textContent = currencies.length;
+}
+
+function loadEngine() {
+  const modules = [
+    {name: 'core/models.py', desc: 'Entity, Account, Currency, Entry', status: true},
+    {name: 'core/ledger.py', desc: 'Append-only double-entry', status: true},
+    {name: 'core/double_entry.py', desc: 'Transaction patterns', status: true},
+    {name: 'core/entities.py', desc: 'Hierarchy + human authority', status: true},
+    {name: 'core/accounts.py', desc: 'Open, close, balance, trial', status: true},
+    {name: 'core/currencies.py', desc: 'Currency registry', status: true},
+    {name: 'storage/json_store.py', desc: 'JSONL persistence', status: true},
+    {name: 'oracle/rates.py', desc: 'Exchange rate lookup', status: false},
+    {name: 'integrations/', desc: 'EZ Merit, Auto-Agent, etc.', status: false},
+  ];
+
+  let html = '';
+  modules.forEach(m => {
+    const dot = m.status ? 'dot-green' : 'dot-gray';
+    html += `<div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.82rem;">
+      <span class="dot ${dot}"></span>
+      <span class="mono" style="color:var(--silver);">${m.name}</span>
+      <span style="color:var(--muted);font-size:.75rem;">${m.desc}</span>
+    </div>`;
+  });
+
+  const ready = modules.filter(m => m.status).length;
+  html += `<div style="margin-top:.5rem;font-size:.75rem;color:var(--muted);">
+    ${ready}/${modules.length} modules ready | 36 tests passing
+  </div>`;
+  $('engine-body').innerHTML = html;
+}
+
+// Roadmap toggle
+document.querySelectorAll('.phase-header').forEach(h => {
+  h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+});
+// Open phase 1 by default
+document.querySelector('.phase-complete')?.classList.add('open');
+
+// Load everything
+loadStatus();
+loadDiscoveryStatus();
+loadCompliance();
+loadCurrencies();
+loadEngine();
+</script>
+</body>
+</html>
