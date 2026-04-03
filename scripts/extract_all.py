@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from silver_shield.config import Config
 from silver_shield.extractors import get_extractor
+from silver_shield.extractors.base import StatementRegistry
 from silver_shield.categorizers.deposits import DepositCategorizer
 
 
@@ -30,10 +31,15 @@ def main():
     parser.add_argument("--config", help="Path to config.yaml")
     parser.add_argument("--account", help="Extract only this account ID")
     parser.add_argument("--output", help="Output JSON path (default: output_dir/all_transactions.json)")
+    parser.add_argument("--fresh", action="store_true", help="Ignore registry, re-extract everything")
     args = parser.parse_args()
 
     config = Config(args.config)
     categorizer = DepositCategorizer(config)
+
+    # Statement registry for dedup
+    registry_path = config.output_dir / "statement_registry.json"
+    registry = None if args.fresh else StatementRegistry(str(registry_path))
 
     accounts = config.all_accounts()
     if args.account:
@@ -54,10 +60,10 @@ def main():
             continue
 
         extractor_cls = get_extractor(account.parser)
-        extractor = extractor_cls(account.id)
+        extractor = extractor_cls(account.id, registry=registry)
 
         print(f"Extracting {account.id} ({account.label}) using {account.parser}...")
-        statements = extractor.extract_all(str(stmt_dir))
+        statements = extractor.extract_all(str(stmt_dir), file_pattern=account.file_pattern)
 
         # Categorize deposits
         for stmt in statements:
@@ -108,10 +114,17 @@ def main():
     with open(output_path, 'w') as f:
         json.dump(all_data, f, indent=2)
 
+    # Save registry
+    if registry:
+        registry.save()
+        print(f"\n{registry.summary()}")
+
     print(f"\nExtraction complete:")
     print(f"  {total_stmts} statements, {total_txns} transactions")
     print(f"  {total_mismatches} mismatches ({all_data['summary']['accuracy']} accuracy)")
     print(f"  Saved to {output_path}")
+    if registry:
+        print(f"  Registry: {registry_path}")
 
 
 if __name__ == "__main__":

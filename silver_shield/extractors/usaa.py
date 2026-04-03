@@ -1,15 +1,20 @@
 """
 USAA bank statement extractor.
 
-USAA statements use a multi-line transaction format:
-  MM/DD description $debit $credit $balance
-  continuation line (more description)
-  continuation line
+USAA text-embedded PDFs use a multi-line transaction format where
+amounts appear on separate lines from the description:
 
-Credits column has $X,XXX.XX format, debits same, with 0 for empty.
+    MM/DD  DESCRIPTION LINE 1
+           CONTINUATION LINE(S)
+    $XX.XX                        <- debit (or "0")
+    0 or $XX.XX                   <- credit (or "0")
+    $X,XXX.XX                     <- running balance
+
+Uses pdfplumber for text extraction (NOT OCR).
 """
 
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -22,63 +27,27 @@ class USAAExtractor(BaseExtractor):
     """Extracts transactions from USAA bank statement PDFs."""
 
     def extract(self, pdf_path: str) -> Optional[Statement]:
-        """Extract all transactions from a USAA statement PDF."""
         fname = Path(pdf_path).name
-
-        # Parse period from filename variants:
-        # "USAA Checking x0000 2025 Jan.pdf"
-        # "USAA Savings x0001 2025 Mar.pdf"
-        m = re.search(r'(\d{4})\s+(\w+)\.pdf', fname)
-        if not m:
-            return None
-
-        year = int(m.group(1))
-        month_map = {
-            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
-        }
-        month = month_map.get(m.group(2), 1)
-
         text = self._extract_text(pdf_path)
         if not text or len(text) < 50:
             return None
 
+        period_start, period_end = self._parse_period(text, fname)
+        if not period_end:
+            return None
+
+        account_id = self._parse_account(text) or self.account_id
+
         stmt = Statement(
             file_name=fname,
-            account_id=self.account_id,
-            period_start=f"{year}-{month:02d}-01",
-            period_end=f"{year}-{month:02d}-28",
+            account_id=account_id,
+            period_start=period_start,
+            period_end=period_end,
         )
 
-        # Parse period from text for more accuracy
-        pm = re.search(r'Statement Period:\s*(\d{2}/\d{2}/\d{4})\s*to\s*(\d{2}/\d{2}/\d{4})', text)
-        if pm:
-            parts = pm.group(1).split('/')
-            stmt.period_start = f"{parts[2]}-{parts[0]}-{parts[1]}"
-            parts = pm.group(2).split('/')
-            stmt.period_end = f"{parts[2]}-{parts[0]}-{parts[1]}"
-
-        # Statement totals
-        m = re.search(r'Deposits/Credits\s+\$([\d,]+\.\d{2})', text)
-        if m:
-            stmt.deposits_total = float(m.group(1).replace(',', ''))
-
-        m = re.search(r'Withdrawals/Debits\s+\$([\d,]+\.\d{2})', text)
-        if m:
-            stmt.withdrawals_total = float(m.group(1).replace(',', ''))
-
-        m = re.search(r'Beginning Balance\s+\$([\d,]+\.\d{2})', text)
-        if m:
-            stmt.opening_balance = float(m.group(1).replace(',', ''))
-
-        m = re.search(r'Ending Balance\s+\$([\d,]+\.\d{2})', text)
-        if m:
-            stmt.closing_balance = float(m.group(1).replace(',', ''))
-
-        # Parse transactions
-        self._parse_transactions(text, stmt, year, month)
+        self._parse_summary(text, stmt)
+        self._parse_transactions(text, stmt)
         self.validate_statement(stmt)
-
         return stmt
 
     def _extract_text(self, pdf_path: str) -> str:
@@ -94,99 +63,123 @@ class USAAExtractor(BaseExtractor):
         except Exception:
             return ""
 
-    def _parse_transactions(self, text: str, stmt: Statement,
-                            year: int, month: int):
-        """Parse USAA multi-line transaction format."""
+    def _parse_period(self, text: str, fname: str) -> tuple[str, str]:
+        # Text: "Statement Period: 11/11/2025 to 12/11/2025"
+        m = re.search(
+            r'Statement\s+Period[:\s]+(\d{2}/\d{2}/\d{4})\s+to\s+(\d{2}/\d{2}/\d{4})',
+            text
+        )
+        if m:
+            start = datetime.strptime(m.group(1), "%m/%d/%Y")
+            end = datetime.strptime(m.group(2), "%m/%d/%Y")
+            return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+        # Filename: "USAA_x7355_2025-11-11_to_2025-12-11_Statement.pdf"
+        m = re.search(r'(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})', fname)
+        if m:
+            return m.group(1), m.group(2)
+
+        return "", ""
+
+    def _parse_account(self, text: str) -> str:
+        m = re.search(r'Account\s+Number[:\s]+\d*?(\d{4})\b', text)
+        return m.group(1) if m else ""
+
+    def _parse_summary(self, text: str, stmt: Statement):
+        m = re.search(r'Beginning\s+Balance\s+\$?([\d,]+\.\d{2})', text)
+        if m:
+            stmt.opening_balance = float(m.group(1).replace(',', ''))
+
+        m = re.search(r'Ending\s+Balance\s+\$?([\d,]+\.\d{2})', text)
+        if m:
+            stmt.closing_balance = float(m.group(1).replace(',', ''))
+
+        m = re.search(r'Deposits?/Credits?\s+\$?([\d,]+\.\d{2})', text)
+        if m:
+            stmt.deposits_total = float(m.group(1).replace(',', ''))
+
+        m = re.search(r'Withdrawals?/Debits?\s+\$?([\d,]+\.\d{2})', text)
+        if m:
+            stmt.withdrawals_total = float(m.group(1).replace(',', ''))
+
+    def _parse_transactions(self, text: str, stmt: Statement):
+        """
+        Parse USAA transactions. pdfplumber renders each as a single line:
+          MM/DD DESCRIPTION $DEBIT 0 $BALANCE   (withdrawal)
+          MM/DD DESCRIPTION 0 $CREDIT $BALANCE  (deposit)
+        Continuation description lines follow without a date prefix.
+        """
         lines = text.split('\n')
-        in_transactions = False
-        i = 0
+        year_start = int(stmt.period_start[:4]) if stmt.period_start else 2025
+        year_end = int(stmt.period_end[:4]) if stmt.period_end else 2025
+        month_end = int(stmt.period_end[5:7]) if stmt.period_end else 12
 
-        while i < len(lines):
-            line = lines[i].strip()
-            upper = line.upper()
+        in_txns = False
+        last_txn = None
 
-            if 'TRANSACTIONS' in upper:
-                in_transactions = True
-                i += 1
+        # MM/DD desc $debit|0 $credit|0 $balance
+        TXN_RE = re.compile(
+            r'^(\d{2}/\d{2})\s+'
+            r'(.+?)\s+'
+            r'(\$[\d,]+\.\d{2}|0)\s+'
+            r'(\$[\d,]+\.\d{2}|0)\s+'
+            r'\$([\d,]+\.\d{2})$'
+        )
+
+        for line in lines:
+            s = line.strip()
+
+            if re.match(r'^Transactions\b', s) or (s.startswith('Date') and 'Description' in s):
+                in_txns = True
+                continue
+            if 'IMPORTANT INFORMATION' in s or 'Interest Paid Information' in s:
+                in_txns = False
+                continue
+            if not in_txns or not s:
+                continue
+            if any(skip in s for skip in [
+                'USAA CLASSIC', 'USAA FEDERAL', 'Account Number',
+                'Statement Period', 'Online: usaa.com', 'Page ',
+                'Transactions (continued)', '022568323', 'Mobile: #8722',
+            ]):
                 continue
 
-            if not in_transactions:
-                i += 1
-                continue
+            m = TXN_RE.match(s)
+            if m:
+                date_str, desc = m.group(1), m.group(2).strip()
+                debit_s, credit_s = m.group(3), m.group(4)
+                balance = float(m.group(5).replace(',', ''))
 
-            # Skip non-transaction content
-            if upper.startswith('DATE DESCRIPTION') or upper == '(CONTINUED)':
-                i += 1
-                continue
-            if upper.startswith('ONLINE:') or upper.startswith('INTEREST PAID INFORMATION'):
-                i += 1
-                continue
-            if 'IMPORTANT INFORMATION' in upper:
-                in_transactions = False
-                i += 1
-                continue
-
-            # Transaction: MM/DD desc $debit|0 $credit|0 $balance
-            txn_match = re.match(
-                r'^(\d{2}/\d{2})\s+'
-                r'(.+?)\s+'
-                r'(\$[\d,]+\.\d{2}|0)\s+'
-                r'(\$[\d,]+\.\d{2}|0)\s+'
-                r'\$([\d,]+\.\d{2})\s*$',
-                line,
-            )
-
-            if txn_match:
-                date_str = txn_match.group(1)
-                desc = txn_match.group(2).strip()
-                debit_str = txn_match.group(3)
-                credit_str = txn_match.group(4)
-                balance = float(txn_match.group(5).replace(',', ''))
-
-                debit = float(debit_str.replace('$', '').replace(',', '')) if debit_str != '0' else 0
-                credit = float(credit_str.replace('$', '').replace(',', '')) if credit_str != '0' else 0
-
-                # Collect continuation lines
-                j = i + 1
-                while j < len(lines):
-                    next_line = lines[j].strip()
-                    if re.match(r'^\d{2}/\d{2}\s', next_line) or not next_line:
-                        break
-                    if re.match(r'^(Online:|Page\s+\d|USAA\s+(CLASSIC|FEDERAL)|\d{9})', next_line):
-                        j += 1
-                        continue
-                    if 'IMPORTANT' in next_line.upper():
-                        break
-                    desc += ' ' + next_line
-                    j += 1
-
-                # Parse date
-                month_num = int(date_str.split('/')[0])
-                day = int(date_str.split('/')[1])
-                full_date = f"{year}-{month_num:02d}-{day:02d}"
-                if month_num < month:
-                    full_date = f"{year + 1}-{month_num:02d}-{day:02d}"
-
-                # Skip balance entries
                 if 'Beginning Balance' in desc or 'Ending Balance' in desc:
-                    i = j
+                    last_txn = None
                     continue
 
+                debit = float(debit_s.replace('$', '').replace(',', '')) if debit_s != '0' else 0.0
+                credit = float(credit_s.replace('$', '').replace(',', '')) if credit_s != '0' else 0.0
+
+                month = int(date_str.split('/')[0])
+                day = int(date_str.split('/')[1])
+                yr = year_start if month > month_end else year_end
+
+                amount = credit if credit > 0 else debit
+                txn_type = 'deposit' if credit > 0 else 'withdrawal'
+
                 txn = Transaction(
-                    date=full_date,
+                    date=f"{yr}-{month:02d}-{day:02d}",
                     description=desc,
-                    amount=credit if credit > 0 else debit,
-                    type='deposit' if credit > 0 else 'withdrawal',
+                    amount=amount,
+                    type=txn_type,
                     balance=balance,
                 )
 
-                if credit > 0:
+                if txn_type == 'deposit':
                     stmt.deposits.append(txn)
-                elif debit > 0:
+                else:
                     stmt.withdrawals.append(txn)
                 stmt.all_transactions.append(txn)
-
-                i = j
+                last_txn = txn
                 continue
 
-            i += 1
+            # Continuation description line
+            if last_txn and not re.match(r'^\d{2}/\d{2}\s', s):
+                last_txn.description += ' | ' + s

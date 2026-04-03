@@ -30,12 +30,27 @@ class CentierExtractor(BaseExtractor):
 
         # Parse period from filename: "Account x1234 MM-DD-YY-MM-DD-YY.pdf"
         m = re.search(r'(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})', fname)
-        if not m:
-            return None
-
-        sm, sd, sy, em, ed, ey = m.groups()
-        start = datetime(2000 + int(sy), int(sm), int(sd))
-        end = datetime(2000 + int(ey), int(em), int(ed))
+        if m:
+            sm, sd, sy, em, ed, ey = m.groups()
+            start = datetime(2000 + int(sy), int(sm), int(sd))
+            end = datetime(2000 + int(ey), int(em), int(ed))
+        else:
+            # Also accept renamed format: "Centier_x1234_YYYY-MM-DD_to_YYYY-MM-DD_Statement.pdf"
+            m = re.search(r'(\d{4})-(\d{2})-(\d{2})_to_(\d{4})-(\d{2})-(\d{2})', fname)
+            if m:
+                sy, sm, sd, ey, em, ed = m.groups()
+                start = datetime(int(sy), int(sm), int(sd))
+                end = datetime(int(ey), int(em), int(ed))
+            else:
+                # Last resort: extract dates from PDF text content
+                text = self._extract_text_pdfplumber(pdf_path)
+                if not text:
+                    text = self._extract_text_pdftotext(pdf_path)
+                dm = re.search(r'FROM\s+(\d{2}/\d{2}/\d{2})\s+THRU\s+(\d{2}/\d{2}/\d{2})', text or '')
+                if not dm:
+                    return None
+                start = datetime.strptime(dm.group(1), "%m/%d/%y")
+                end = datetime.strptime(dm.group(2), "%m/%d/%y")
 
         # Try pdfplumber first (works for text-based PDFs)
         text = self._extract_text_pdfplumber(pdf_path)
@@ -132,12 +147,50 @@ class CentierExtractor(BaseExtractor):
             if not current_section:
                 continue
 
-            # Parse: MM/DD description amount
+            # Skip check register header line
+            if upper.startswith('CHECK NO'):
+                continue
+
+            date_str = None
+            desc = None
+            amount = None
+
+            # Standard: MM/DD description amount
             m = re.match(r'^(\d{2}/\d{2})\s+(.+?)\s+([\d,]+\.\d{2})\s*$', stripped)
             if m:
-                date_str, desc, amount_str = m.group(1), m.group(2).strip(), m.group(3)
-                amount = float(amount_str.replace(',', ''))
+                date_str, desc, amount = m.group(1), m.group(2).strip(), float(m.group(3).replace(',', ''))
 
+            # Check register: one or more checks per line
+            # Single: "1123 07/30 300.00"
+            # Multi:  "6075 09/08 600.00 *6086 09/13 2,000.00 6087 09/30 900.00"
+            if not date_str and current_section == 'check':
+                check_matches = list(re.finditer(
+                    r'(\*?\d+)\s+(\d{2}/\d{2})\s+([\d,]+\.\d{2})',
+                    stripped
+                ))
+                for cm in check_matches:
+                    check_no = cm.group(1).lstrip('*')
+                    c_date = cm.group(2)
+                    c_amount = float(cm.group(3).replace(',', ''))
+                    c_month = int(c_date.split('/')[0])
+                    c_day = int(c_date.split('/')[1])
+                    c_year = year
+                    if start.month > end.month and c_month >= start.month:
+                        c_year = year - 1
+                    c_full_date = f"{c_year}-{c_month:02d}-{c_day:02d}"
+
+                    txn = Transaction(
+                        date=c_full_date,
+                        description=f"CHECK #{check_no}",
+                        amount=c_amount,
+                        type='withdrawal',
+                    )
+                    stmt.withdrawals.append(txn)
+                    stmt.all_transactions.append(txn)
+                if check_matches:
+                    continue
+
+            if date_str and amount is not None:
                 month = int(date_str.split('/')[0])
                 day = int(date_str.split('/')[1])
                 txn_year = year
@@ -147,7 +200,7 @@ class CentierExtractor(BaseExtractor):
 
                 txn = Transaction(
                     date=full_date,
-                    description=desc,
+                    description=desc or "Unknown",
                     amount=amount,
                     type='deposit' if current_section == 'deposit' else 'withdrawal',
                 )

@@ -22,6 +22,7 @@ class Account:
     label: str
     parser: str  # centier, usaa, generic, ocr
     statement_dir: str
+    file_pattern: str = "*.pdf"  # glob pattern to filter PDFs in statement_dir
 
     @property
     def short_id(self) -> str:
@@ -127,6 +128,7 @@ class Config:
                     label=a.get("label", a["id"]),
                     parser=a.get("parser", "generic"),
                     statement_dir=a.get("statement_dir", a["id"]),
+                    file_pattern=a.get("file_pattern", "*.pdf"),
                 )
                 for a in e.get("accounts", [])
             ]
