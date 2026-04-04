@@ -106,6 +106,7 @@ class Ledger:
             reference_id=reference_id,
             source_system=source_system,
             idempotency_key=idempotency_key,
+            authorization=authorization,
             metadata=metadata or {},
         )
 
@@ -119,7 +120,7 @@ class Ledger:
             entry_date=txn.entry_date,
             reference_id=reference_id,
             source_system=source_system,
-            # Only one entry gets the idempotency key
+            authorization=authorization,
             metadata=metadata or {},
         )
 
@@ -127,6 +128,71 @@ class Ledger:
         self.store.append_entry(credit_entry)
 
         return debit_entry, credit_entry
+
+    def record_correction(
+        self,
+        original_transaction_id: str,
+        reason: str,
+        authorization: Authorization,
+        entry_date: Optional[date] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> tuple[Entry, Entry]:
+        """
+        Reverse a prior transaction with corrective entries.
+
+        Append-only: the original entries stay untouched. This creates
+        a new pair that mirrors the original but swaps debit/credit,
+        zeroing out the effect. The authorization and reason are
+        attached to both corrective entries, and metadata links back
+        to the original transaction.
+
+        Returns (debit_entry, credit_entry) of the correction.
+        """
+        originals = self.store.get_entries_by_transaction(original_transaction_id)
+        if len(originals) != 2:
+            raise ValueError(
+                f"Transaction '{original_transaction_id}' not found or malformed"
+            )
+
+        orig_debit = next(
+            (e for e in originals if e.entry_type == EntryType.DEBIT), None
+        )
+        orig_credit = next(
+            (e for e in originals if e.entry_type == EntryType.CREDIT), None
+        )
+        if orig_debit is None or orig_credit is None:
+            raise ValueError(
+                f"Transaction '{original_transaction_id}' missing debit or credit"
+            )
+
+        # Idempotency on the correction itself
+        if idempotency_key:
+            existing = self.store.find_by_idempotency_key(idempotency_key)
+            if existing:
+                entries = self.store.get_entries_by_transaction(
+                    existing.transaction_id
+                )
+                if len(entries) == 2:
+                    debit = next(e for e in entries if e.entry_type == EntryType.DEBIT)
+                    credit = next(e for e in entries if e.entry_type == EntryType.CREDIT)
+                    return debit, credit
+
+        # Reverse: original debit account gets credited, original credit account gets debited
+        return self.record_transaction(
+            debit_account_id=orig_credit.account_id,
+            credit_account_id=orig_debit.account_id,
+            amount=orig_debit.amount,
+            description=f"CORRECTION: {reason} (reverses txn {original_transaction_id})",
+            entry_date=entry_date,
+            reference_id=original_transaction_id,
+            source_system="correction",
+            idempotency_key=idempotency_key,
+            metadata={
+                "correction_of": original_transaction_id,
+                "reason": reason,
+            },
+            authorization=authorization,
+        )
 
     def get_balance(self, account_id: str) -> Decimal:
         """Current balance from the most recent entry."""

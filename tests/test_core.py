@@ -20,7 +20,9 @@ from silver_shield.core.double_entry import DoubleEntry
 from silver_shield.core.entities import EntityManager
 from silver_shield.core.accounts import AccountManager
 from silver_shield.core.currencies import CurrencyRegistry
+from silver_shield.core.models import Authorization
 from silver_shield.resources.tracker import ResourceTracker
+from silver_shield.resources.assets import AssetTracker, AssetCategory
 from silver_shield.integrations.merit import MeritBridge
 from silver_shield.integrations.auto_agent import AutoAgentBridge
 from silver_shield.integrations.reconcile import MeritReconciler
@@ -655,3 +657,223 @@ class TestAutoAgentBridge:
         result = bridge.fund_project("eric", "auto-agent",
                                      Decimal("50"), "USD", "Extra budget")
         assert result["to_balance_after"] == "150"
+
+
+# -----------------------------------------------------------------------
+# Ledger Corrections
+# -----------------------------------------------------------------------
+
+class TestLedgerCorrections:
+
+    def _setup(self, store, entities, accounts):
+        root = entities.create("Eric", "eric", EntityType.PERSON)
+        checking = accounts.open(root.id, "USD", AccountType.ASSET, "Checking")
+        income = accounts.open(root.id, "USD", AccountType.INCOME, "Income")
+        return root, checking, income
+
+    def test_correction_reverses_transaction(
+        self, store, ledger, entities, accounts
+    ):
+        _, checking, income = self._setup(store, entities, accounts)
+        debit, credit = ledger.record_transaction(
+            checking.id, income.id, Decimal("500"), "Bad deposit"
+        )
+        auth = Authorization(
+            authorized_by="eric",
+            statement="Reverse unauthorized deposit per review",
+            reference="CI-2026-04-04-001",
+        )
+        corr_d, corr_c = ledger.record_correction(
+            original_transaction_id=debit.transaction_id,
+            reason="Deposit was unauthorized",
+            authorization=auth,
+        )
+        # Balances should net to zero
+        assert ledger.get_balance(checking.id) == Decimal("0")
+        assert ledger.get_balance(income.id) == Decimal("0")
+        # Correction entries reference the original
+        assert corr_d.reference_id == debit.transaction_id
+        assert corr_d.authorization is not None
+        assert corr_d.authorization.authorized_by == "eric"
+
+    def test_correction_idempotency(self, store, ledger, entities, accounts):
+        _, checking, income = self._setup(store, entities, accounts)
+        debit, _ = ledger.record_transaction(
+            checking.id, income.id, Decimal("200"), "Test"
+        )
+        auth = Authorization(
+            authorized_by="eric", statement="Fix it", reference="ref-1",
+        )
+        c1_d, c1_c = ledger.record_correction(
+            debit.transaction_id, "dup test", auth,
+            idempotency_key="corr-001",
+        )
+        c2_d, c2_c = ledger.record_correction(
+            debit.transaction_id, "dup test", auth,
+            idempotency_key="corr-001",
+        )
+        assert c1_d.id == c2_d.id
+        assert ledger.get_balance(checking.id) == Decimal("0")
+
+    def test_correction_bad_transaction_raises(self, store, ledger, entities, accounts):
+        self._setup(store, entities, accounts)
+        auth = Authorization(
+            authorized_by="eric", statement="test", reference="ref",
+        )
+        with pytest.raises(ValueError, match="not found or malformed"):
+            ledger.record_correction("fake-txn-id", "no such txn", auth)
+
+
+# -----------------------------------------------------------------------
+# Resource Tracker Corrections
+# -----------------------------------------------------------------------
+
+class TestTrackerCorrections:
+
+    @pytest.fixture
+    def tracker(self, store, entities):
+        t = ResourceTracker(store)
+        t.currencies.initialize_defaults()
+        root = entities.create("Eric", "eric", EntityType.PERSON)
+        entities.create("Auto-Agent", "auto-agent", EntityType.AGENT,
+                        parent_id=root.id)
+        # Mint and allocate WITHOUT authorization (the unauthorized case)
+        t.mint("eric", Decimal("5000"), "MERIT", "Mint", authorized_by="eric")
+        t.allocate("eric", "auto-agent", Decimal("500"), "MERIT",
+                   "Unauthorized allocation")
+        return t
+
+    def test_find_unauthorized_allocations(self, tracker):
+        unauth = tracker.find_unauthorized_allocations("eric")
+        assert len(unauth) > 0
+        assert unauth[0]["amount"] == "500"
+
+    def test_correct_allocation_reverses_and_authorizes(self, tracker):
+        unauth = tracker.find_unauthorized_allocations("eric")
+        txn_id = unauth[0]["transaction_id"]
+
+        auth = Authorization(
+            authorized_by="eric",
+            statement="Reverse the 500 MERIT allocation that lacked authorization",
+            reference="CI-2026-04-04-002",
+        )
+        result = tracker.correct_allocation(txn_id, "No authorization", auth)
+        assert result["original_transaction_id"] == txn_id
+        assert result["amount"] == "500"
+        assert result["authorized_by"] == "eric"
+
+        # auto-agent balance should be back to 0
+        bal = tracker.get_balance("auto-agent", "MERIT")
+        assert bal == Decimal("0")
+
+
+# -----------------------------------------------------------------------
+# Physical Asset Tracker
+# -----------------------------------------------------------------------
+
+class TestAssetTracker:
+
+    @pytest.fixture
+    def asset_tracker(self, store, entities):
+        at = AssetTracker(store)
+        root = entities.create("Eric", "eric", EntityType.PERSON)
+        # Give eric a USD asset account so he can pay for things
+        accts = AccountManager(store)
+        accts.open(root.id, "USD", AccountType.ASSET, "USD Checking")
+        # Seed with funds
+        ledger = Ledger(store)
+        equity = accts.open(root.id, "USD", AccountType.EQUITY, "Equity")
+        ledger.record_transaction(
+            accts.list_for_entity(root.id)[0].id,
+            equity.id,
+            Decimal("50000"), "Seed capital",
+        )
+        return at
+
+    def test_register_asset_creates_entity_and_accounts(self, asset_tracker):
+        result = asset_tracker.register_asset(
+            owner_slug="eric",
+            name="2006 Toyota Camry",
+            slug="camry",
+            category=AssetCategory.VEHICLE,
+            original_value=Decimal("4500"),
+        )
+        assert result["slug"] == "camry"
+        assert result["category"] == "vehicle"
+        assert result["book_value"] == "4500"
+
+    def test_record_depreciation(self, asset_tracker):
+        asset_tracker.register_asset(
+            "eric", "2006 Toyota Camry", "camry",
+            AssetCategory.VEHICLE, original_value=Decimal("4500"),
+        )
+        result = asset_tracker.record_depreciation(
+            "camry", Decimal("500"), "Annual depreciation 2026",
+        )
+        assert result["book_value_after"] == "4000"
+        assert result["total_costs"] == "500"
+
+    def test_record_maintenance_from_owner(self, asset_tracker):
+        asset_tracker.register_asset(
+            "eric", "2006 Toyota Camry", "camry",
+            AssetCategory.VEHICLE, original_value=Decimal("4500"),
+        )
+        result = asset_tracker.record_maintenance(
+            "camry", Decimal("350"),
+            "Key replacement and ignition repair",
+            paid_from_slug="eric",
+        )
+        assert result["maintenance_cost"] == "350"
+        assert result["asset"] == "camry"
+
+    def test_record_insurance_premium(self, asset_tracker):
+        asset_tracker.register_asset(
+            "eric", "2006 Toyota Camry", "camry",
+            AssetCategory.VEHICLE, original_value=Decimal("4500"),
+        )
+        result = asset_tracker.record_insurance_premium(
+            "camry", Decimal("125"),
+            "Monthly auto insurance — April 2026",
+            policy_id="POL-AUTO-001",
+        )
+        assert result["premium"] == "125"
+
+    def test_register_property(self, asset_tracker):
+        result = asset_tracker.register_asset(
+            "eric", "Wabash IN Property", "wabash-property",
+            AssetCategory.PROPERTY, original_value=Decimal("85000"),
+            metadata={"address_state": "IN"},
+        )
+        assert result["category"] == "property"
+        assert result["book_value"] == "85000"
+
+    def test_asset_summary(self, asset_tracker):
+        asset_tracker.register_asset(
+            "eric", "2006 Toyota Camry", "camry",
+            AssetCategory.VEHICLE, original_value=Decimal("4500"),
+        )
+        asset_tracker.record_depreciation("camry", Decimal("500"))
+        asset_tracker.record_maintenance("camry", Decimal("200"), "Oil change")
+        asset_tracker.record_insurance_premium("camry", Decimal("125"), "Premium")
+
+        summary = asset_tracker.get_asset_summary("camry")
+        assert summary["category"] == "vehicle"
+        assert summary["book_value"] == "4000"
+        assert summary["cost_breakdown"]["depreciation"] == "500"
+        assert summary["cost_breakdown"]["maintenance"] == "200"
+        assert summary["cost_breakdown"]["insurance"] == "125"
+
+    def test_list_assets(self, asset_tracker):
+        asset_tracker.register_asset(
+            "eric", "Camry", "camry",
+            AssetCategory.VEHICLE, original_value=Decimal("4500"),
+        )
+        asset_tracker.register_asset(
+            "eric", "Wabash Property", "wabash",
+            AssetCategory.PROPERTY, original_value=Decimal("85000"),
+        )
+        assets = asset_tracker.list_assets("eric")
+        slugs = {a["slug"] for a in assets}
+        assert "camry" in slugs
+        assert "wabash" in slugs
+        assert len(assets) == 2

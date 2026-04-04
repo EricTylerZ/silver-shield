@@ -17,7 +17,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from ..core.models import AccountType, EntityType
+from ..core.models import AccountType, EntityType, Authorization
 from ..core.ledger import Ledger
 from ..core.accounts import AccountManager
 from ..core.entities import EntityManager
@@ -109,6 +109,7 @@ class ResourceTracker:
         description: str,
         category: str = "operating",
         source_system: str = "manual",
+        authorization: Optional[Authorization] = None,
         idempotency_key: Optional[str] = None,
     ) -> dict:
         """
@@ -138,6 +139,7 @@ class ResourceTracker:
             source_system=source_system,
             idempotency_key=idempotency_key,
             metadata={"category": category},
+            authorization=authorization,
         )
 
         return {
@@ -160,6 +162,7 @@ class ResourceTracker:
         amount: Decimal,
         currency_code: str,
         description: str,
+        authorization: Optional[Authorization] = None,
         idempotency_key: Optional[str] = None,
     ) -> dict:
         """
@@ -192,6 +195,7 @@ class ResourceTracker:
             source_system="household_allocation",
             idempotency_key=idempotency_key,
             metadata={"from_entity": from_entity_slug, "to_entity": to_entity_slug},
+            authorization=authorization,
         )
 
         return {
@@ -215,6 +219,7 @@ class ResourceTracker:
         currency_code: str,
         description: str,
         authorized_by: Optional[str] = None,
+        authorization: Optional[Authorization] = None,
         idempotency_key: Optional[str] = None,
     ) -> dict:
         """
@@ -243,6 +248,14 @@ class ResourceTracker:
                     f"Authorizer '{authorized_by}' is not a valid human authority"
                 )
 
+        # Build Authorization if not provided explicitly
+        if authorization is None and authorized_by:
+            authorization = Authorization(
+                authorized_by=authorized_by,
+                statement=description,
+                reference=idempotency_key or "manual",
+            )
+
         asset_acct = self._find_or_create_account(
             entity.id, currency_code, AccountType.ASSET,
             f"{currency_code} treasury",
@@ -261,6 +274,7 @@ class ResourceTracker:
             source_system="mint",
             idempotency_key=idempotency_key,
             metadata={"authorized_by": authorized_by or "head_of_household"},
+            authorization=authorization,
         )
 
         return {
@@ -271,6 +285,80 @@ class ResourceTracker:
             "balance_after": str(debit.balance_after),
             "description": description,
         }
+
+    # ------------------------------------------------------------------
+    # Corrections (append-only reversal)
+    # ------------------------------------------------------------------
+
+    def correct_allocation(
+        self,
+        original_transaction_id: str,
+        reason: str,
+        authorization: Authorization,
+        idempotency_key: Optional[str] = None,
+    ) -> dict:
+        """
+        Reverse an unauthorized or erroneous allocation.
+
+        Appends corrective entries that cancel the original transaction.
+        The authorization (who said so, verbatim statement, reference)
+        is attached to both corrective entries. The original entries
+        remain in the ledger untouched -- append-only.
+        """
+        debit, credit = self.ledger.record_correction(
+            original_transaction_id=original_transaction_id,
+            reason=reason,
+            authorization=authorization,
+            idempotency_key=idempotency_key,
+        )
+
+        return {
+            "correction_transaction_id": debit.transaction_id,
+            "original_transaction_id": original_transaction_id,
+            "amount": str(debit.amount),
+            "reason": reason,
+            "authorized_by": authorization.authorized_by,
+            "authorization_statement": authorization.statement,
+            "authorization_reference": authorization.reference,
+            "debit_balance_after": str(debit.balance_after),
+            "credit_balance_after": str(credit.balance_after),
+        }
+
+    def find_unauthorized_allocations(self, entity_slug: str,
+                                      currency_code: Optional[str] = None,
+                                      ) -> list[dict]:
+        """
+        Find allocation entries that lack authorization.
+
+        Returns entries from 'household_allocation' source_system
+        where authorization is None.
+        """
+        entity = self.entities.get_by_slug(entity_slug)
+        if entity is None:
+            raise ValueError(f"Entity '{entity_slug}' not found")
+
+        accounts = self.accounts.list_for_entity(entity.id)
+        if currency_code:
+            accounts = [a for a in accounts if a.currency_code == currency_code]
+
+        unauthorized = []
+        seen_txns = set()
+        for acct in accounts:
+            entries = self.ledger.get_entries(acct.id, limit=1000)
+            for e in entries:
+                if (e.source_system == "household_allocation"
+                        and e.authorization is None
+                        and e.transaction_id not in seen_txns):
+                    seen_txns.add(e.transaction_id)
+                    unauthorized.append({
+                        "transaction_id": e.transaction_id,
+                        "account_id": e.account_id,
+                        "amount": str(e.amount),
+                        "description": e.description,
+                        "entry_date": e.entry_date.isoformat(),
+                    })
+
+        return unauthorized
 
     # ------------------------------------------------------------------
     # Ledger access
