@@ -363,6 +363,37 @@ def api_coverage():
 # Core Engine API -- entity tree, accounts, ledger, resources, merit
 # ---------------------------------------------------------------------------
 
+@app.route("/api/accounts")
+def api_accounts():
+    """All accounts across all entities -- flat list for ecosystem sync.
+
+    This is the endpoint EZ Merit Notify and other ecosystem projects
+    call to discover wallet balances. Returns every account with its
+    owning entity, currency, type, and current balance.
+    """
+    eng = _get_engine()
+    if "error" in eng:
+        return jsonify({"available": False, "error": eng["error"]})
+
+    tree = eng["tracker"].get_entity_tree()
+    accounts = []
+    for entity in tree:
+        for acct in entity["accounts"]:
+            accounts.append({
+                "id": acct["id"],
+                "name": acct["name"],
+                "type": acct["type"],
+                "currency": acct["currency"],
+                "balance": acct["balance"],
+                "active": acct["active"],
+                "entity": entity["slug"],
+                "entity_name": entity["name"],
+                "entity_type": entity["type"],
+            })
+
+    return jsonify({"available": True, "accounts": accounts})
+
+
 @app.route("/api/engine/entities")
 def api_engine_entities():
     """Full entity tree with account balances."""
