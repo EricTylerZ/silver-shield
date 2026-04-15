@@ -125,3 +125,9 @@ A `PreToolUse` hook in `.claude/settings.local.json` enforces this automatically
 - **Opus** for architectural decisions, entity hierarchy design, compliance review
 - **Sonnet** for extraction scripts, categorization rules, API endpoints
 - **Haiku** for bulk OCR processing, simple file operations
+
+## Resource Governance (Effective 2026-04-14)
+Per Commander's Directive (compliance-inspector/COMMANDER_DIRECTIVE.md):
+- **80% Context Rule:** After 80% context usage, no parallel Agent calls — sequential only.
+- **Quadratic Merit Priority:** priority = sqrt(merit_balance). Silver Shield is ledger of record.
+- Read the full directive before doing work.
